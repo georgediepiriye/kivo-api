@@ -1,6 +1,7 @@
 import { User, IUser } from "../models/userModel";
-import AppError from "../utils/appError";
+
 import httpStatus from "http-status";
+import AppError from "../utils/AppError";
 
 export const createUser = async (userData: Partial<IUser>) => {
   // Check if user already exists

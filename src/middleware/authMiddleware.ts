@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 import { User, IUser } from "../models/userModel";
-import AppError from "../utils/appError";
+import AppError from "../utils/AppError";
 import httpStatus from "http-status";
 
 // Extend the Express Request type to include the user object

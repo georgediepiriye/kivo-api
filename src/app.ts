@@ -5,7 +5,7 @@ import { globalErrorHandler } from "./middleware/errorMiddleware";
 import authRouter from "./routes/authRoutes";
 import eventRouter from "./routes/eventRoutes";
 import httpStatus from "http-status";
-import AppError from "./utils/appError";
+import AppError from "./utils/AppError";
 
 const app = express();
 
