@@ -107,7 +107,11 @@ const eventSchema = new Schema<IEvent>(
         required: [true, "Neighborhood is required for local discovery"],
       },
     },
-    image: { type: String, default: "default-event.jpg" },
+    image: {
+      type: String,
+      default:
+        "https://picsum.photos/seed/6369aaa2-5bbb-49e0-9743-3f43b5096a4c/1200/800",
+    },
     isFree: { type: Boolean, default: true },
     attendees: { type: Number, default: 0 },
     participantImages: [{ type: String }],
