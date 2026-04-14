@@ -16,11 +16,15 @@ export const getAllEvents = async (query: any) => {
   const excludedFields = ["page", "sort", "limit", "fields"];
   excludedFields.forEach((el) => delete queryObj[el]);
 
-  // Handle specific status logic (e.g., only show non-cancelled)
   let queryStr = JSON.stringify(queryObj);
-  // Optional: Add regex for title search if passed
   const filter = JSON.parse(queryStr);
+
+  // Handle title search regex
   if (filter.title) filter.title = { $regex: filter.title, $options: "i" };
+
+  // EXCLUDE PAST EVENTS
+  // Only return events where the endDate is in the future
+  filter.endDate = { $gte: new Date() };
 
   let dbQuery = Event.find(filter).populate({
     path: "organizer",
@@ -32,7 +36,8 @@ export const getAllEvents = async (query: any) => {
     const sortBy = query.sort.split(",").join(" ");
     dbQuery = dbQuery.sort(sortBy);
   } else {
-    dbQuery = dbQuery.sort("-createdAt"); // Default: Newest first
+    // Default to Newest first, or use startDate to show soonest events first
+    dbQuery = dbQuery.sort("-createdAt");
   }
 
   // 3. PAGINATION

@@ -93,5 +93,80 @@ export const EVENT_CATEGORIES = {
   },
 } as const;
 
+/**
+ * HOTSPOT CATEGORIES
+ * Designed for location-based discovery and map filtering.
+ */
+export const HOTSPOT_CATEGORIES = {
+  // --- HIGH ENERGY ---
+  nightlife: {
+    label: "Nightlife",
+    slug: "nightlife",
+    description: "Clubs, bars, and late-night entertainment.",
+    icon: "Music",
+  },
+  lounge: {
+    label: "Lounge",
+    slug: "lounge",
+    description: "Relaxed settings for drinks and conversation.",
+    icon: "Beer",
+  },
+
+  // --- CULINARY ---
+  dining: {
+    label: "Dining",
+    slug: "dining",
+    description: "Restaurants and casual food spots.",
+    icon: "Utensils",
+  },
+  cafe: {
+    label: "Cafe",
+    slug: "cafe",
+    description: "Coffee shops and breakfast nooks.",
+    icon: "Coffee",
+  },
+
+  // --- PRODUCTIVITY & CULTURE ---
+  workspace: {
+    label: "Workspace",
+    slug: "workspace",
+    description: "Co-working spaces and quiet study zones.",
+    icon: "Laptop",
+  },
+  arts: {
+    label: "Arts & Gallery",
+    slug: "arts",
+    description: "Creative hubs and exhibition spaces.",
+    icon: "Palette",
+  },
+
+  // --- ACTIVE & OUTDOORS ---
+  wellness: {
+    label: "Wellness Hub",
+    slug: "wellness",
+    description: "Gyms, parks, and recreational centers.",
+    icon: "Heart",
+  },
+  retail: {
+    label: "Retail Hub",
+    slug: "retail",
+    description: "Malls and popular shopping districts.",
+    icon: "ShoppingBag",
+  },
+} as const;
+
+/**
+ * HOTSPOT HEAT LEVELS
+ * Used for real-time map styling and dynamic pin colors.
+ */
+export const HOTSPOT_STATUS = {
+  CHILL: { label: "Chill", color: "#64748b" }, // Slate
+  ACTIVE: { label: "Active", color: "#3b82f6" }, // Blue
+  TRENDING: { label: "Trending", color: "#f59e0b" }, // Amber
+  HOT: { label: "Live Hotspot", color: "#ef4444" }, // Red
+} as const;
+
 export type KivoType = keyof typeof EVENT_TYPES;
 export type EventCategory = keyof typeof EVENT_CATEGORIES;
+export type HotspotCategory = keyof typeof HOTSPOT_CATEGORIES;
+export type HotspotStatus = keyof typeof HOTSPOT_STATUS;
