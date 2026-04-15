@@ -1,123 +1,88 @@
+/* eslint-disable no-console */
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import Hotspot from "../models/hotspotModel";
+import { HOTSPOT_CATEGORIES } from "../lib/constants";
 
 dotenv.config();
 
 const hotspots = [
-  // --- NIGHTLIFE & LOUNGES ---
+  // --- NIGHTLIFE & LOUNGE (High Energy) ---
   {
     title: "Casablanca Sports Bar",
-    category: "nightlife",
+    category: HOTSPOT_CATEGORIES.nightlife.slug,
     status: "HOT",
     neighborhood: "GRA Phase 3",
     coords: [6.978, 4.811],
   },
   {
     title: "Asia Town",
-    category: "lounge",
+    category: HOTSPOT_CATEGORIES.lounge.slug,
     status: "TRENDING",
     neighborhood: "Old GRA",
     coords: [7.011, 4.782],
   },
   {
     title: "Sky Bar PH",
-    category: "nightlife",
+    category: HOTSPOT_CATEGORIES.nightlife.slug,
     status: "TRENDING",
     neighborhood: "Genesis",
     coords: [7.002, 4.835],
   },
-  {
-    title: "The Hub",
-    category: "lounge",
-    status: "ACTIVE",
-    neighborhood: "Peter Odili",
-    coords: [7.0261, 4.821],
-  },
 
-  // --- DINING & CAFES ---
+  // --- DINING & CAFE (Culinary) ---
   {
     title: "Bole King",
-    category: "dining",
+    category: HOTSPOT_CATEGORIES.dining.slug,
     status: "HOT",
     neighborhood: "Garrison",
     coords: [6.9925, 4.8142],
   },
   {
     title: "Native Tray",
-    category: "dining",
+    category: HOTSPOT_CATEGORIES.dining.slug,
     status: "ACTIVE",
     neighborhood: "GRA",
     coords: [6.982, 4.819],
   },
   {
-    title: "The Spice Route",
-    category: "dining",
-    status: "ACTIVE",
-    neighborhood: "Mall",
-    coords: [7.0045, 4.7795],
+    title: "Vintage Cafe",
+    category: HOTSPOT_CATEGORIES.cafe.slug,
+    status: "CHILL",
+    neighborhood: "GRA Phase 2",
+    coords: [6.975, 4.815],
   },
 
-  // --- WELLNESS & OUTDOORS (Replaces Park/Beach) ---
+  // --- WORKSPACE & ARTS (Productivity & Culture) ---
+  {
+    title: "Kivo Hub",
+    category: HOTSPOT_CATEGORIES.workspace.slug,
+    status: "ACTIVE",
+    neighborhood: "Trans Amadi",
+    coords: [7.032, 4.825],
+  },
+  {
+    title: "Rivers State Museum",
+    category: HOTSPOT_CATEGORIES.arts.slug,
+    status: "CHILL",
+    neighborhood: "Secretariat",
+    coords: [7.008, 4.785],
+  },
+
+  // --- WELLNESS & RETAIL (Active & Outdoors) ---
   {
     title: "PH Pleasure Park",
-    category: "wellness",
+    category: HOTSPOT_CATEGORIES.wellness.slug,
     status: "TRENDING",
     neighborhood: "Rumuola",
     coords: [7.0094, 4.8239],
   },
   {
-    title: "Isaac Boro Park",
-    category: "wellness",
-    status: "CHILL",
-    neighborhood: "Mile 1",
-    coords: [7.0012, 4.7891],
-  },
-  {
-    title: "Ifoko Beach",
-    category: "wellness",
-    status: "CHILL",
-    neighborhood: "Bakana",
-    coords: [6.95, 4.7],
-  },
-
-  // --- RETAIL & COMMERCE (Replaces Market) ---
-  {
     title: "Port Harcourt Mall",
-    category: "retail",
+    category: HOTSPOT_CATEGORIES.retail.slug,
     status: "ACTIVE",
     neighborhood: "Azikiwe",
     coords: [7.005, 4.7797],
-  },
-  {
-    title: "Next Cash & Carry",
-    category: "retail",
-    status: "ACTIVE",
-    neighborhood: "Oginigba",
-    coords: [7.035, 4.832],
-  },
-  {
-    title: "Oil Mill Market",
-    category: "retail",
-    status: "TRENDING",
-    neighborhood: "Rumukwurusi",
-    coords: [7.065, 4.855],
-  },
-
-  // --- ARTS & WORKSPACE ---
-  {
-    title: "Rivers State Museum",
-    category: "arts",
-    status: "CHILL",
-    neighborhood: "Secretariat",
-    coords: [7.008, 4.785],
-  },
-  {
-    title: "Filmhouse Cinema",
-    category: "arts",
-    status: "ACTIVE",
-    neighborhood: "GRA",
-    coords: [6.981, 4.813],
   },
 ];
 
@@ -130,14 +95,26 @@ const seedDB = async () => {
     console.log("🔌 Connected to Kivo DB...");
 
     await Hotspot.deleteMany({});
-    console.log("Cleared old hotspots.");
+    console.log("🗑️ Cleared existing hotspots.");
 
-    const formattedHotspots = hotspots.map((h) => ({
+    const formattedHotspots = hotspots.map((h, index) => ({
       title: h.title,
-      category: h.category,
+      category: h.category, // Matches your HOTSPOT_CATEGORIES slugs exactly
       status: h.status || "CHILL",
-      description: `Explore the unique vibes of ${h.title} in ${h.neighborhood}. A curated Kivo hotspot for the best ${h.category} experience in Port Harcourt.`,
-      image: `https://images.unsplash.com/photo-1514525253344-9914f255399c?auto=format&fit=crop&w=800&q=60`,
+      description: `Discover the best of Port Harcourt at ${h.title}. A top-rated ${h.category} destination in ${h.neighborhood} curated for the Kivo community.`,
+
+      // Main Cover Image
+      image: `https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80`,
+
+      // Gallery - Limited to 5 images per your requirement
+      gallery: [
+        `https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&q=60&sig=${index}1`,
+        `https://images.unsplash.com/photo-1574097656146-0b43b7660cb6?w=400&q=60&sig=${index}2`,
+        `https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&q=60&sig=${index}3`,
+        `https://images.unsplash.com/photo-1559333086-b0a56225a93c?w=400&q=60&sig=${index}4`,
+        `https://images.unsplash.com/photo-1514525253344-9914f255399c?w=400&q=60&sig=${index}5`,
+      ],
+
       location: {
         type: "Point",
         coordinates: h.coords,
@@ -146,20 +123,22 @@ const seedDB = async () => {
         city: "Port Harcourt",
         state: "Rivers State",
       },
-      rating: (Math.random() * (5 - 4.0) + 4.0).toFixed(1), // Higher professional average
+      rating: parseFloat((Math.random() * (5 - 4.3) + 4.3).toFixed(1)),
       bestTimeToVisit:
-        h.category === "nightlife" ? "9:00 PM - 2:00 AM" : "10:00 AM - 8:00 PM",
+        h.category === "nightlife" || h.category === "lounge"
+          ? "8:00 PM - Late"
+          : "10:00 AM - 7:00 PM",
       isActive: true,
     }));
 
     await Hotspot.insertMany(formattedHotspots);
     console.log(
-      `✅ Successfully seeded ${formattedHotspots.length} professional hotspots!`,
+      `✅ Successfully seeded ${formattedHotspots.length} hotspots using exact constants!`,
     );
 
     process.exit();
   } catch (error) {
-    console.error("❌ Error seeding DB:", error);
+    console.error("❌ Seeding Error:", error);
     process.exit(1);
   }
 };
