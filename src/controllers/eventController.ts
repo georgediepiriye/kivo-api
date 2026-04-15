@@ -8,20 +8,20 @@ export const createEvent = async (
   next: NextFunction,
 ) => {
   try {
-    // Extract location data formatted for the model
+    // 1. Log to verify (optional, for debugging)
+    // console.log("Payload received:", req.body);
+
+    // 2. Just pass req.body directly since it already has the location object
+    // but ensure the organizer is attached.
     const eventData = {
       ...req.body,
-      location: {
-        type: "Point",
-        coordinates: [req.body.lng, req.body.lat],
-        address: req.body.address,
-        neighborhood: req.body.neighborhood,
-      },
     };
 
     const organizerId = req.user!._id.toString();
 
+    // Pass the already structured payload to your service
     const newEvent = await eventService.createNewEvent(eventData, organizerId);
+
     res.status(httpStatus.CREATED).json({
       status: "success",
       data: { event: newEvent },

@@ -7,7 +7,6 @@ import { EVENT_CATEGORIES, EVENT_TYPES } from "../lib/constants";
 
 dotenv.config();
 
-// Configuration for Port Harcourt
 const PH_NEIGHBORHOODS = [
   "Old GRA",
   "GRA Phase 2",
@@ -21,127 +20,91 @@ const PH_NEIGHBORHOODS = [
   "Rumuokoro",
 ];
 
-const PH_BOUNDS = {
-  latMin: 4.75,
-  latMax: 4.9,
-  lngMin: 6.95,
-  lngMax: 7.1,
-};
+const PH_BOUNDS = { latMin: 4.75, latMax: 4.9, lngMin: 6.95, lngMax: 7.1 };
 
 async function seedEvents() {
   try {
-    // 1. Connection
     const uri = process.env.MONGO_URI;
-    if (!uri) throw new Error("MONGO_URI is missing in .env");
-
+    if (!uri) throw new Error("MONGO_URI missing");
     await mongoose.connect(uri);
-    console.log("🔌 Connected to MongoDB...");
 
-    // 2. Clear Collections (Preserving Admin)
     await Event.deleteMany({});
+    const organizers = await User.find({
+      role: { $in: ["organizer", "admin"] },
+    }).limit(10);
 
-    const adminEmail = "admin@gmail.com";
-    const userDeleteResult = await User.deleteMany({
-      email: { $ne: adminEmail },
-    });
-
-    console.log(
-      `🧹 Cleanup: Removed all events and ${userDeleteResult.deletedCount} non-admin users.`,
-    );
-
-    // 3. Ensure Admin & Generate Organizers
     const categoryKeys = Object.keys(EVENT_CATEGORIES);
-    let admin = await User.findOne({ email: adminEmail });
-
-    if (!admin) {
-      console.log("🛡️ Creating fresh admin...");
-      admin = await User.create({
-        name: "Kivo Admin",
-        email: adminEmail,
-        password: "password1",
-        role: "admin",
-        active: true,
-        location: {
-          city: "Port Harcourt",
-          neighborhood: "GRA Phase 2",
-        },
-      });
-    }
-
-    const organizers: IUser[] = [];
-    console.log("👤 Generating 10 new organizers...");
-
-    for (let i = 0; i < 10; i++) {
-      const newUser = await User.create({
-        name: faker.person.fullName(),
-        email: faker.internet.email().toLowerCase(),
-        password: "password123",
-        role: "organizer",
-        interests: faker.helpers.arrayElements(categoryKeys, 3),
-        location: {
-          city: "Port Harcourt",
-          neighborhood: faker.helpers.arrayElement(PH_NEIGHBORHOODS),
-        },
-        active: true,
-      });
-      organizers.push(newUser);
-    }
-
-    // 4. Create 100 Balanced Events
     const typeKeys = Object.keys(EVENT_TYPES);
-    const eventStatuses = ["casual", "verified", "featured"];
-    const now = new Date();
 
-    console.log("🎡 Generating 100 events with stable 7-day timelines...");
+    console.log("🎲 Generating 100 hyper-randomized events...");
 
     const eventBatch = Array.from({ length: 100 }).map((_, i) => {
       const host = faker.helpers.arrayElement(organizers);
-      const isFree = faker.datatype.boolean();
 
+      // 1. Randomize Financials
+      const isFree = faker.datatype.boolean();
+      const hasExternalLink =
+        faker.helpers.maybe(() => true, { probability: 0.2 }) || false;
+
+      // 2. Generate Random Ticket Tiers (Only if Paid & No External Link)
+      const ticketTiers = [];
+      if (!isFree && !hasExternalLink) {
+        const tierCount = faker.number.int({ min: 1, max: 3 });
+        for (let j = 0; j < tierCount; j++) {
+          ticketTiers.push({
+            name: faker.helpers.arrayElement([
+              "Early Bird",
+              "Regular",
+              "VIP",
+              "Table",
+            ]),
+            price: faker.number.int({ min: 1000, max: 50000 }),
+            capacity: faker.number.int({ min: 10, max: 100 }),
+            sold: faker.number.int({ min: 0, max: 5 }),
+            description: faker.helpers.maybe(() => faker.lorem.sentence(), {
+              probability: 0.5,
+            }),
+          });
+        }
+      }
+
+      // 3. Calculate Total Capacity from tiers or random default
+      const totalCapacity =
+        ticketTiers.length > 0
+          ? ticketTiers.reduce((acc, t) => acc + t.capacity, 0)
+          : faker.helpers.arrayElement([null, 50, 100, 200]);
+
+      // 4. Stable randomized timelines (Past, Live, Upcoming)
+      const now = new Date();
       let startDate: Date;
       let endDate: Date;
+      const timeline = i % 3;
 
-      /**
-       * STABLE TIMELINE LOGIC
-       * i % 3 == 0 -> Past
-       * i % 3 == 1 -> Ongoing (Happening Now)
-       * i % 3 == 2 -> Upcoming
-       */
-      const timelineType = i % 3;
-
-      if (timelineType === 0) {
-        // PAST: Ended at least 2 days ago
-        endDate = faker.date.recent({
-          days: 7,
-          refDate: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
-        });
-        startDate = new Date(endDate);
-        startDate.setHours(endDate.getHours() - 5);
-      } else if (timelineType === 1) {
-        // ONGOING: Started 2 days ago, ends in 7 days
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - 2);
-        endDate = new Date(now);
-        endDate.setDate(now.getDate() + 7);
+      if (timeline === 0) {
+        // Past
+        startDate = faker.date.past({ refDate: now });
+        endDate = new Date(startDate.getTime() + 1000 * 60 * 60 * 4); // +4 hours
+      } else if (timeline === 1) {
+        // Live
+        startDate = new Date(now.getTime() - 1000 * 60 * 60 * 2); // Started 2h ago
+        endDate = new Date(now.getTime() + 1000 * 60 * 60 * 5); // Ends in 5h
       } else {
-        // UPCOMING: Starts in 8 days, ends in 10 days
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() + 8);
-        startDate.setHours(18, 0, 0);
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 2);
+        // Upcoming
+        startDate = faker.date.soon({ days: 14, refDate: now });
+        endDate = new Date(startDate.getTime() + 1000 * 60 * 60 * 3); // +3 hours
       }
 
       return {
         title: faker.company.catchPhrase().substring(0, 100),
         description: faker.lorem.paragraphs(2),
-        type: faker.helpers.arrayElement(typeKeys),
-        status: faker.helpers.arrayElement(eventStatuses),
         category: faker.helpers.arrayElement(categoryKeys),
-        isPublic: true,
-        allowAnonymous: faker.datatype.boolean(),
+        type: faker.helpers.arrayElement(typeKeys),
+        status: faker.helpers.arrayElement(["casual", "verified", "featured"]),
+
         startDate,
         endDate,
+
+        // GeoJSON Structure
         location: {
           type: "Point",
           coordinates: [
@@ -157,26 +120,44 @@ async function seedEvents() {
           address: faker.location.streetAddress(),
           neighborhood: faker.helpers.arrayElement(PH_NEIGHBORHOODS),
         },
+
         image: `https://picsum.photos/seed/${faker.string.uuid()}/1200/800`,
-        isFree,
-        price: isFree ? 0 : faker.number.int({ min: 1000, max: 25000 }),
-        attendees: faker.number.int({ min: 5, max: 200 }),
-        participantImages: Array.from({ length: 4 }).map(() =>
-          faker.image.avatar(),
-        ),
         organizer: host._id,
         organizerType: faker.helpers.arrayElement(["individual", "business"]),
-        capacity: faker.helpers.arrayElement([null, 30, 50, 100, 500]),
-        isCancelled: false,
+
+        // Privacy
+        isPublic: true,
+        allowAnonymous: faker.datatype.boolean(),
+
+        // Financials
+        isFree,
+        ticketTiers,
+        totalCapacity,
+        externalTicketLink: hasExternalLink ? faker.internet.url() : undefined,
+
+        // Engagement
+        attendees: faker.number.int({ min: 0, max: 30 }),
+        participantImages: Array.from({ length: 5 }).map(() =>
+          faker.image.avatar(),
+        ),
+
+        // Rules & Admin
+        ageRestriction: faker.helpers.arrayElement(["All Ages", "18+", "21+"]),
+        refundPolicy: faker.helpers.arrayElement(["none", "flexible", "24h"]),
+        tags: faker.helpers.arrayElements(
+          ["live music", "networking", "party", "outdoor", "tech"],
+          3,
+        ),
+        isCancelled:
+          faker.helpers.maybe(() => true, { probability: 0.05 }) || false, // 5% chance of being cancelled
       };
     });
 
-    // 5. Insert and Exit
     await Event.insertMany(eventBatch);
-    console.log("🚀 Success! 100 stable events seeded for Port Harcourt.");
+    console.log("🚀 Seeding Complete: 100 randomized events inserted.");
     process.exit(0);
   } catch (error) {
-    console.error("❌ Seeding failed:", error);
+    console.error("❌ Error:", error);
     process.exit(1);
   }
 }

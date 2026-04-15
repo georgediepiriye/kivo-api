@@ -6,6 +6,15 @@ import {
   EVENT_CATEGORIES,
 } from "../lib/constants";
 
+// Define the Ticket Tier structure
+interface ITicketTier {
+  name: string; // e.g., "Early Bird", "VIP", "Table for 4"
+  price: number;
+  capacity: number;
+  sold: number;
+  description?: string;
+}
+
 export interface IEvent extends Document {
   title: string;
   description: string;
@@ -16,8 +25,8 @@ export interface IEvent extends Document {
   status: "casual" | "verified" | "featured";
 
   // Privacy & Visibility
-  isPublic: boolean; // true = anyone can find it, false = invite/link only
-  allowAnonymous: boolean; // true = guest/anon users can view details, false = login required
+  isPublic: boolean;
+  allowAnonymous: boolean;
 
   location: {
     type: "Point";
@@ -28,15 +37,34 @@ export interface IEvent extends Document {
   image: string;
   organizer: mongoose.Types.ObjectId;
   organizerType: "individual" | "business";
-  price?: number;
+
+  // Ticketing & Inventory
   isFree: boolean;
+  ticketTiers: ITicketTier[];
+  totalCapacity?: number; // Aggregate of all tiers or a hard limit
+
+  // Engagement & Stats
   attendees: number;
   participantImages: string[];
-  capacity?: number;
+
+  // Rules & Admin
+  ageRestriction?: string; // e.g., "18+", "All Ages"
+  refundPolicy: "none" | "flexible" | "24h";
+  tags: string[];
+  externalTicketLink?: string; // If hosted elsewhere
   isCancelled: boolean;
+
   createdAt: Date;
   updatedAt: Date;
 }
+
+const ticketTierSchema = new Schema<ITicketTier>({
+  name: { type: String, required: true },
+  price: { type: Number, default: 0, min: 0 },
+  capacity: { type: Number, required: true, min: 1 },
+  sold: { type: Number, default: 0 },
+  description: String,
+});
 
 const eventSchema = new Schema<IEvent>(
   {
@@ -67,11 +95,11 @@ const eventSchema = new Schema<IEvent>(
     },
     isPublic: {
       type: Boolean,
-      default: true, // Most events should be discoverable by default
+      default: true,
     },
     allowAnonymous: {
       type: Boolean,
-      default: true, // Allows "Scout AI" or guest users to see it without logging in
+      default: true,
     },
     startDate: {
       type: Date,
@@ -81,11 +109,7 @@ const eventSchema = new Schema<IEvent>(
       type: Date,
       required: [true, "Please specify when the event ends"],
       validate: {
-        // We use 'any' or 'this: any' here because Mongoose handles
-        // the 'this' context at runtime, and the internal Mongoose
-        // types are often deeper than our custom IEvent interface.
         validator: function (this: any, value: Date): boolean {
-          // Access the startDate from the document instance
           return value > this.startDate;
         },
         message: "End date must be after the start date",
@@ -109,10 +133,17 @@ const eventSchema = new Schema<IEvent>(
     },
     image: {
       type: String,
-      default:
-        "https://picsum.photos/seed/6369aaa2-5bbb-49e0-9743-3f43b5096a4c/1200/800",
+      default: "https://picsum.photos/seed/kivo/1200/800",
     },
     isFree: { type: Boolean, default: true },
+
+    // The "World-Class" Ticketing Update
+    ticketTiers: [ticketTierSchema],
+
+    totalCapacity: {
+      type: Number,
+      default: null,
+    },
     attendees: { type: Number, default: 0 },
     participantImages: [{ type: String }],
     organizer: {
@@ -125,15 +156,16 @@ const eventSchema = new Schema<IEvent>(
       enum: ["individual", "business"],
       default: "individual",
     },
-    price: {
-      type: Number,
-      default: 0,
-      min: [0, "Price cannot be negative"],
+
+    // Additional Global Metadata
+    ageRestriction: { type: String, default: "All Ages" },
+    refundPolicy: {
+      type: String,
+      enum: ["none", "flexible", "24h"],
+      default: "none",
     },
-    capacity: {
-      type: Number,
-      default: null,
-    },
+    tags: [{ type: String }],
+    externalTicketLink: String,
     isCancelled: {
       type: Boolean,
       default: false,
@@ -146,10 +178,18 @@ const eventSchema = new Schema<IEvent>(
   },
 );
 
+// Virtual for getting the starting price
+eventSchema.virtual("startingPrice").get(function () {
+  if (this.isFree || !this.ticketTiers || this.ticketTiers.length === 0)
+    return 0;
+  return Math.min(...this.ticketTiers.map((tier) => tier.price));
+});
+
 // Indexes
 eventSchema.index({ location: "2dsphere" });
-eventSchema.index({ type: 1, category: 1, date: 1 });
-// Added index for visibility filtering
+eventSchema.index({ type: 1, category: 1, startDate: 1 });
 eventSchema.index({ isPublic: 1, allowAnonymous: 1 });
+eventSchema.index({ tags: 1 }); // Great for Scout AI searches
 
-export const Event = mongoose.model<IEvent>("Event", eventSchema);
+export const Event =
+  mongoose.models.Event || mongoose.model<IEvent>("Event", eventSchema);
