@@ -8,18 +8,18 @@ export const createEvent = async (
   next: NextFunction,
 ) => {
   try {
-    // 1. Log to verify (optional, for debugging)
-    // console.log("Payload received:", req.body);
+    const eventData = { ...req.body };
 
-    // 2. Just pass req.body directly since it already has the location object
-    // but ensure the organizer is attached.
-    const eventData = {
-      ...req.body,
-    };
+    // CRITICAL: Prevent GeoSpatial Index errors for Online events
+    // If it's online, we must ensure the location object doesn't exist
+    // so Mongoose doesn't try to fill in defaults like { type: "Point" }
+    if (eventData.eventFormat === "online") {
+      delete eventData.location;
+      eventData.isOnline = true; // Sync boolean helper
+    }
 
     const organizerId = req.user!._id.toString();
 
-    // Pass the already structured payload to your service
     const newEvent = await eventService.createNewEvent(eventData, organizerId);
 
     res.status(httpStatus.CREATED).json({

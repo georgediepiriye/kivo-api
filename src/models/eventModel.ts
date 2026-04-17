@@ -6,9 +6,8 @@ import {
   EVENT_CATEGORIES,
 } from "../lib/constants";
 
-// Define the Ticket Tier structure
 interface ITicketTier {
-  name: string; // e.g., "Early Bird", "VIP", "Table for 4"
+  name: string;
   price: number;
   capacity: number;
   sold: number;
@@ -24,36 +23,40 @@ export interface IEvent extends Document {
   type: KivoType;
   status: "casual" | "verified" | "featured";
 
-  // Privacy & Visibility
+  // Format Update
+  eventFormat: "physical" | "online" | "hybrid";
+  isOnline: boolean;
+
   isPublic: boolean;
   allowAnonymous: boolean;
 
-  location: {
+  location?: {
     type: "Point";
     coordinates: [number, number];
     address: string;
     neighborhood: string;
   };
+
   image: string;
   organizer: mongoose.Types.ObjectId;
   organizerType: "individual" | "business";
 
-  // Ticketing & Inventory
   isFree: boolean;
+  ticketingType: "none" | "internal" | "external";
   ticketTiers: ITicketTier[];
-  totalCapacity?: number; // Aggregate of all tiers or a hard limit
+  totalCapacity?: number;
 
-  // Engagement & Stats
+  // Links
+  joinLink?: string;
+  meetingLink?: string; // Specific for Online/Hybrid
+  externalTicketLink?: string;
+
   attendees: number;
   participantImages: string[];
-
-  // Rules & Admin
-  ageRestriction?: string; // e.g., "18+", "All Ages"
+  ageRestriction?: string;
   refundPolicy: "none" | "flexible" | "24h";
   tags: string[];
-  externalTicketLink?: string; // If hosted elsewhere
   isCancelled: boolean;
-
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,6 +81,16 @@ const eventSchema = new Schema<IEvent>(
       type: String,
       required: [true, "Please provide a description"],
     },
+    // FORMAT LOGIC
+    eventFormat: {
+      type: String,
+      enum: ["physical", "online", "hybrid"],
+      default: "physical",
+    },
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
     type: {
       type: String,
       enum: Object.keys(EVENT_TYPES),
@@ -93,71 +106,57 @@ const eventSchema = new Schema<IEvent>(
       enum: Object.keys(EVENT_CATEGORIES),
       required: [true, "Please select a category"],
     },
-    isPublic: {
-      type: Boolean,
-      default: true,
-    },
-    allowAnonymous: {
-      type: Boolean,
-      default: true,
-    },
-    startDate: {
-      type: Date,
-      required: [true, "Please specify when the event starts"],
-    },
-    endDate: {
-      type: Date,
-      required: [true, "Please specify when the event ends"],
-      validate: {
-        validator: function (this: any, value: Date): boolean {
-          return value > this.startDate;
-        },
-        message: "End date must be after the start date",
-      },
-    },
+    isPublic: { type: Boolean, default: true },
+    allowAnonymous: { type: Boolean, default: true },
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+
     location: {
       type: {
         type: String,
-        default: "Point",
         enum: ["Point"],
+        // Remove the default: "Point" here!
+        // Only set it if you have coordinates.
+        required: function () {
+          return this.eventFormat !== "online";
+        },
       },
       coordinates: {
         type: [Number],
-        required: [true, "Coordinates are required for the map"],
+        required: function () {
+          return this.eventFormat !== "online";
+        },
       },
       address: String,
-      neighborhood: {
-        type: String,
-        required: [true, "Neighborhood is required for local discovery"],
-      },
+      neighborhood: String,
     },
+
     image: {
       type: String,
       default: "https://picsum.photos/seed/kivo/1200/800",
     },
     isFree: { type: Boolean, default: true },
-
-    // The "World-Class" Ticketing Update
+    ticketingType: {
+      type: String,
+      enum: ["none", "internal", "external"],
+      default: "none",
+    },
     ticketTiers: [ticketTierSchema],
 
-    totalCapacity: {
-      type: Number,
-      default: null,
-    },
+    // LINK LOGIC
+    joinLink: { type: String, trim: true }, // CTA for free events
+    meetingLink: { type: String, trim: true }, // The actual Zoom/Meet URL
+    externalTicketLink: { type: String, trim: true },
+
+    totalCapacity: { type: Number, default: null },
     attendees: { type: Number, default: 0 },
     participantImages: [{ type: String }],
-    organizer: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: [true, "Every activity/showcase must have a host"],
-    },
+    organizer: { type: Schema.Types.ObjectId, ref: "User", required: true },
     organizerType: {
       type: String,
       enum: ["individual", "business"],
       default: "individual",
     },
-
-    // Additional Global Metadata
     ageRestriction: { type: String, default: "All Ages" },
     refundPolicy: {
       type: String,
@@ -165,11 +164,7 @@ const eventSchema = new Schema<IEvent>(
       default: "none",
     },
     tags: [{ type: String }],
-    externalTicketLink: String,
-    isCancelled: {
-      type: Boolean,
-      default: false,
-    },
+    isCancelled: { type: Boolean, default: false },
   },
   {
     timestamps: true,
@@ -178,18 +173,26 @@ const eventSchema = new Schema<IEvent>(
   },
 );
 
-// Virtual for getting the starting price
+// Virtual for Price
 eventSchema.virtual("startingPrice").get(function () {
   if (this.isFree || !this.ticketTiers || this.ticketTiers.length === 0)
     return 0;
   return Math.min(...this.ticketTiers.map((tier) => tier.price));
 });
 
-// Indexes
-eventSchema.index({ location: "2dsphere" });
-eventSchema.index({ type: 1, category: 1, startDate: 1 });
-eventSchema.index({ isPublic: 1, allowAnonymous: 1 });
-eventSchema.index({ tags: 1 }); // Great for Scout AI searches
+// Auto-calculate capacity
+eventSchema.pre("save", function () {
+  if (this.ticketingType === "internal" && this.ticketTiers?.length > 0) {
+    this.totalCapacity = this.ticketTiers.reduce(
+      (acc, tier) => acc + (tier.capacity || 0),
+      0,
+    );
+  }
+});
+
+// Keep indexes but allow sparse for location
+eventSchema.index({ location: "2dsphere" }, { sparse: true });
+eventSchema.index({ "location.neighborhood": 1 }, { sparse: true });
 
 export const Event =
   mongoose.models.Event || mongoose.model<IEvent>("Event", eventSchema);

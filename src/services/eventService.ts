@@ -4,6 +4,11 @@ export const createNewEvent = async (
   eventData: Partial<IEvent>,
   organizerId: string,
 ) => {
+  // Double-check: ensure location isn't a partial object with just a type
+  if (eventData.eventFormat === "online" && eventData.location) {
+    delete eventData.location;
+  }
+
   return await Event.create({
     ...eventData,
     organizer: organizerId,

@@ -1,17 +1,21 @@
 import mongoose, { Schema, Document } from "mongoose";
 import bcrypt from "bcryptjs";
 
-// 1. Define the Interface for User Document
+// 1. Updated Interface
 export interface IUser extends Document {
   name: string;
   email: string;
-  image: string; // Made this non-optional since we'll provide a default
+  image: string;
   password?: string;
   role: "user" | "organizer" | "admin";
   interests: string[];
+  // Updated to match Event's GeoJSON structure
   location: {
-    city: string;
+    type: "Point";
+    coordinates: [number, number]; // [longitude, latitude]
+    address?: string;
     neighborhood?: string;
+    city?: string;
   };
   active: boolean;
   correctPassword(
@@ -35,11 +39,9 @@ const userSchema = new Schema<IUser>(
       lowercase: true,
       trim: true,
     },
-    // ADDED: User Image field
     image: {
       type: String,
       default: function (this: IUser) {
-        // Generates a consistent, unique avatar based on the user's name
         return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(this.name || "Kivo")}`;
       },
     },
@@ -55,10 +57,23 @@ const userSchema = new Schema<IUser>(
       default: "user",
     },
     interests: [{ type: String }],
+
+    // UPDATED: Location GeoJSON (matching Event logic)
     location: {
-      city: { type: String, default: "Port Harcourt" },
+      type: {
+        type: String,
+        default: "Point",
+        enum: ["Point"],
+      },
+      coordinates: {
+        type: [Number],
+        default: [7.0085, 4.8156], // Default to Port Harcourt [long, lat]
+      },
+      address: String,
       neighborhood: String,
+      city: { type: String, default: "Port Harcourt" },
     },
+
     active: {
       type: Boolean,
       default: true,
@@ -73,19 +88,21 @@ const userSchema = new Schema<IUser>(
 );
 
 /**
+ * INDEXES
+ * This is crucial for performance and geo-queries
+ */
+userSchema.index({ location: "2dsphere" });
+
+/**
  * PASSWORD HASHING MIDDLEWARE
  */
 userSchema.pre<IUser>("save", async function () {
   if (!this.isModified("password")) return;
-
   if (this.password) {
     this.password = await bcrypt.hash(this.password, 12);
   }
 });
 
-/**
- * INSTANCE METHOD
- */
 userSchema.methods.correctPassword = async function (
   candidatePassword: string,
   userPassword: string,
@@ -93,5 +110,5 @@ userSchema.methods.correctPassword = async function (
   return await bcrypt.compare(candidatePassword, userPassword);
 };
 
-// 3. Export the Model
-export const User = mongoose.model<IUser>("User", userSchema);
+export const User =
+  mongoose.models.User || mongoose.model<IUser>("User", userSchema);
