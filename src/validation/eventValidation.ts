@@ -49,9 +49,24 @@ export const createEventSchema = z.object({
       // Financials & Ticketing
       isFree: z.boolean().default(true),
       ticketingType: z.enum(["none", "internal", "external"]).default("none"),
-      joinLink: z.string().url().optional().or(z.literal("")),
-      meetingLink: z.string().url().optional().or(z.literal("")),
-      externalTicketLink: z.string().url("Invalid URL").nullable().optional(),
+      joinLink: z
+        .string()
+        .url("Invalid Join Link")
+        .nullable()
+        .optional()
+        .or(z.literal("")),
+      meetingLink: z
+        .string()
+        .url("Invalid Meeting Link")
+        .nullable()
+        .optional()
+        .or(z.literal("")),
+      externalTicketLink: z
+        .string()
+        .url("Invalid External Ticket URL")
+        .nullable()
+        .optional()
+        .or(z.literal("")),
 
       ticketTiers: z
         .array(

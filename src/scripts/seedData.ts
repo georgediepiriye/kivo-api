@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import mongoose from "mongoose";
 import { faker } from "@faker-js/faker";
 import * as dotenv from "dotenv";
@@ -43,6 +44,11 @@ async function seedEvents() {
       role: { $in: ["organizer", "admin"] },
     }).limit(10);
 
+    if (organizers.length === 0) {
+      console.log("⚠️ No organizers found. Please seed users first.");
+      process.exit(1);
+    }
+
     const categoryKeys = Object.keys(EVENT_CATEGORIES);
     const typeKeys = Object.keys(EVENT_TYPES);
 
@@ -55,41 +61,43 @@ async function seedEvents() {
         "online",
         "hybrid",
       ]);
-      const isOnline = eventFormat === "online";
+      const isOnline = eventFormat === "online" || eventFormat === "hybrid";
 
-      // --- 1. DATE LOGIC ---
+      // --- 1. UPDATED DATE LOGIC (1 Week Spans) ---
       const now = new Date();
+      const ONE_DAY = 24 * 60 * 60 * 1000;
+      const ONE_WEEK = 7 * ONE_DAY;
+
       let startDate: Date;
       let endDate: Date;
       const roll = Math.random();
 
       if (roll < 0.2) {
-        // PAST: Between 2 weeks and 1 week ago
+        // PAST: Between 3 weeks and 2 weeks ago
         startDate = faker.date.between({
-          from: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000),
-          to: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+          from: new Date(now.getTime() - 21 * ONE_DAY),
+          to: new Date(now.getTime() - 14 * ONE_DAY),
         });
-        endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000);
-      } else if (roll < 0.35) {
-        // LIVE/ONGOING: Started 1 hour ago, ends in 3 hours
-        startDate = new Date(now.getTime() - 1 * 60 * 60 * 1000);
-        endDate = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+        endDate = new Date(startDate.getTime() + ONE_WEEK);
+      } else if (roll < 0.5) {
+        // LIVE/ONGOING: Started 3 days ago, ends 4 days from now (Full 7 Days)
+        startDate = new Date(now.getTime() - 3 * ONE_DAY);
+        endDate = new Date(now.getTime() + 4 * ONE_DAY);
       } else {
-        // UPCOMING: Starts at least 7 days from now
-        const oneWeekFromNow = new Date(
-          now.getTime() + 7 * 24 * 60 * 60 * 1000,
-        );
-        startDate = faker.date.soon({ days: 21, refDate: oneWeekFromNow });
-        endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000);
+        // UPCOMING: Starts at least 7 days from now, lasts for 1 week
+        const oneWeekFromNow = new Date(now.getTime() + ONE_WEEK);
+        startDate = faker.date.soon({ days: 14, refDate: oneWeekFromNow });
+        endDate = new Date(startDate.getTime() + ONE_WEEK);
       }
 
-      // --- 2. INITIALIZE EVENT OBJECT (Fixes TS2339) ---
+      // --- 2. INITIALIZE EVENT OBJECT ---
       const eventData: Record<string, any> = {
         title: `${faker.commerce.productAdjective()} ${faker.helpers.arrayElement(["Summit", "Party", "Festival", "Workshop", "Hangout"])}`,
         description: faker.commerce.productDescription(),
         category: faker.helpers.arrayElement(categoryKeys),
         type: faker.helpers.arrayElement(typeKeys),
         status: faker.helpers.arrayElement(["casual", "verified", "featured"]),
+        medium: eventFormat, // Using 'medium' as seen in your UI logic
         eventFormat,
         isOnline,
         startDate,
@@ -106,12 +114,12 @@ async function seedEvents() {
         ageRestriction: faker.helpers.arrayElement(["All Ages", "18+", "21+"]),
         refundPolicy: faker.helpers.arrayElement(["none", "flexible", "24h"]),
         tags: faker.helpers.arrayElements(
-          ["live music", "networking", "party", "tech"],
+          ["live music", "networking", "party", "tech", "web3", "creative"],
           3,
         ),
         isCancelled:
           faker.helpers.maybe(() => true, { probability: 0.05 }) || false,
-        ticketTiers: [], // Fixes TS7034 implicit type
+        ticketTiers: [],
         isFree: true,
       };
 
@@ -151,40 +159,41 @@ async function seedEvents() {
         eventData.isFree = false;
         eventData.externalTicketLink = faker.internet.url();
       } else {
+        // Community/WhatsApp Events
         eventData.joinLink = `https://chat.whatsapp.com/${faker.string.alphanumeric(20)}`;
       }
 
       // --- 4. VIRTUAL / PHYSICAL LOGIC ---
-      if (eventFormat !== "physical") {
+      if (isOnline) {
         eventData.meetingLink = faker.helpers.arrayElement([
           `https://zoom.us/j/${faker.number.int({ min: 111111, max: 999999 })}`,
           `https://meet.google.com/abc-defg-hij`,
         ]);
       }
 
-      if (eventFormat !== "online") {
-        eventData.location = {
-          type: "Point",
-          coordinates: [
-            faker.location.longitude({
-              min: PH_BOUNDS.lngMin,
-              max: PH_BOUNDS.lngMax,
-            }),
-            faker.location.latitude({
-              min: PH_BOUNDS.latMin,
-              max: PH_BOUNDS.latMax,
-            }),
-          ],
-          address: faker.location.streetAddress(),
-          neighborhood: PH_NEIGHBORHOODS[i % 10],
-        };
-      }
+      // Even hybrid/online events benefit from a location seed for the "Map"
+      // but the UI will handle the 'Online' badge based on eventFormat/isOnline
+      eventData.location = {
+        type: "Point",
+        coordinates: [
+          faker.location.longitude({
+            min: PH_BOUNDS.lngMin,
+            max: PH_BOUNDS.lngMax,
+          }),
+          faker.location.latitude({
+            min: PH_BOUNDS.latMin,
+            max: PH_BOUNDS.latMax,
+          }),
+        ],
+        address: faker.location.streetAddress(),
+        neighborhood: PH_NEIGHBORHOODS[i % 10],
+      };
 
       return eventData;
     });
 
     await Event.create(eventBatch);
-    console.log("🚀 Kivo DB Seeded Successfully.");
+    console.log("🚀 Kivo DB Seeded Successfully with long-running Live moves!");
     process.exit(0);
   } catch (error) {
     console.error("❌ Seeding failed:", error);

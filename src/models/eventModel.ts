@@ -190,6 +190,26 @@ eventSchema.pre("save", function () {
   }
 });
 
+// In your Event Model
+eventSchema.virtual("priceLabel").get(function () {
+  if (
+    this.ticketingType === "none" ||
+    !this.ticketTiers ||
+    this.ticketTiers.length === 0
+  ) {
+    return "Free";
+  }
+
+  const prices = this.ticketTiers.map((t) => t.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+
+  if (min === 0 && max === 0) return "Free";
+  if (min === 0 && max > 0) return `Free - ₦${max.toLocaleString()}`;
+  if (min === max) return `₦${min.toLocaleString()}`;
+  return `₦${min.toLocaleString()} - ₦${max.toLocaleString()}`;
+});
+
 // Keep indexes but allow sparse for location
 eventSchema.index({ location: "2dsphere" }, { sparse: true });
 eventSchema.index({ "location.neighborhood": 1 }, { sparse: true });
