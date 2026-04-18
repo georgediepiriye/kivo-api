@@ -1,8 +1,8 @@
 import { Router } from "express";
-import * as eventController from "../controllers/eventController";
-import { protect, restrictTo } from "../middleware/authMiddleware";
-import { validate } from "../middleware/validate";
-import { createEventSchema } from "../validation/eventValidation";
+import * as eventController from "../controllers/eventController.js";
+import { protect, restrictTo } from "../middleware/authMiddleware.js";
+import { validate } from "../middleware/validate.js";
+import { createEventSchema } from "../validation/eventValidation.js";
 
 const router = Router();
 

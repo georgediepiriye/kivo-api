@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as hotspotController from "../controllers/hotspotController";
+import * as hotspotController from "../controllers/hotspotController.js";
 
 const router = Router();
 

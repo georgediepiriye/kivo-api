@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import * as hotspotService from "../services/hotspotService";
+import * as hotspotService from "./services/hotspotService.js";
 import httpStatus from "http-status";
 
 export const getAllHotspots = async (

@@ -4,7 +4,7 @@ import {
   KivoType,
   EVENT_TYPES,
   EVENT_CATEGORIES,
-} from "../lib/constants";
+} from "../lib/constants.js";
 
 interface ITicketTier {
   name: string;

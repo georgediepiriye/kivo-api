@@ -1,12 +1,12 @@
 import express, { Request, Response } from "express";
 import helmet from "helmet";
 import cors from "cors";
-import { globalErrorHandler } from "./middleware/errorMiddleware";
-import authRouter from "./routes/authRoutes";
-import eventRouter from "./routes/eventRoutes";
-import hotspotRouter from "./routes/hotspotRoutes";
+import { globalErrorHandler } from "./middleware/errorMiddleware.js";
+import authRouter from "./routes/authRoutes.js";
+import eventRouter from "./routes/eventRoutes.js";
+import hotspotRouter from "./routes/hotspotRoutes.js";
 import httpStatus from "http-status";
-import AppError from "./utils/AppError";
+import AppError from "./utils/AppError.js";
 
 const app = express();
 
@@ -30,6 +30,7 @@ app.get("/health", (req: Request, res: Response) => {
 app.use("/v1/auth", authRouter);
 app.use("/v1/events", eventRouter);
 app.use("/v1/hotspots", hotspotRouter);
+
 /**
  * 404 HANDLER
  * Catches all routes that don't match the ones above

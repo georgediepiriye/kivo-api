@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { env } from "../config/env";
-import { User, IUser } from "../models/userModel";
-import AppError from "../utils/AppError";
+import { User, IUser } from "../models/User.js";
+import AppError from "../utils/AppError.js";
 import httpStatus from "http-status";
+import config from "../config/config.js";
 
 // Extend the Express Request type to include the user object
 declare global {
@@ -41,7 +41,10 @@ export const protect = async (
     }
 
     // 2. Verify token
-    const decoded = jwt.verify(token, env.JWT_SECRET) as unknown as JwtPayload;
+    const decoded = jwt.verify(
+      token,
+      config.jwt.secret,
+    ) as unknown as JwtPayload;
 
     // 3. Check if user still exists
     const currentUser = await User.findById(decoded.id);

@@ -2,9 +2,9 @@
 import mongoose from "mongoose";
 import { faker } from "@faker-js/faker";
 import * as dotenv from "dotenv";
-import { User } from "../models/userModel";
-import { Event } from "../models/eventModel";
-import { EVENT_CATEGORIES, EVENT_TYPES } from "../lib/constants";
+import { User } from "../models/User.js";
+import { Event } from "../models/Event.js";
+import { EVENT_CATEGORIES, EVENT_TYPES } from "../lib/constants.js";
 
 dotenv.config();
 

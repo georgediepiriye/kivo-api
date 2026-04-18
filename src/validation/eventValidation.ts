@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EVENT_CATEGORIES, EVENT_TYPES } from "../lib/constants";
+import { EVENT_CATEGORIES, EVENT_TYPES } from "../lib/constants.js";
 
 export const createEventSchema = z.object({
   body: z

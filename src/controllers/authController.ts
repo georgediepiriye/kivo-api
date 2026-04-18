@@ -1,33 +1,30 @@
 import { Request, Response, NextFunction } from "express";
-import * as authService from "../services/authService";
-import { signToken } from "../utils/jwt";
+import * as authService from "./services/authService.js";
+import { signToken } from "../utils/jwt.js";
 import httpStatus from "http-status";
+import catchAsync from "../utils/catchAsync.js";
 
-export const signup = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
+export const signup = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
     const newUser = await authService.createUser(req.body);
     const token = signToken(newUser._id.toString());
+
+    // Convert to a plain object and remove the password
+    const userResponse = newUser.toObject();
+    delete userResponse.password;
 
     res.status(httpStatus.CREATED).json({
       status: "success",
       token,
-      data: { user: newUser },
+      data: {
+        user: userResponse, // Send the sanitized version
+      },
     });
-  } catch (error) {
-    next(error);
-  }
-};
+  },
+);
 
-export const login = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
+export const login = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
     const { email, password } = req.body;
 
     const user = await authService.verifyUser(email, password);
@@ -48,7 +45,5 @@ export const login = async (
         },
       },
     });
-  } catch (error) {
-    next(error);
-  }
-};
+  },
+);

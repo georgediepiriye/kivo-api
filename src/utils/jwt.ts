@@ -1,11 +1,15 @@
 import jwt, { SignOptions } from "jsonwebtoken";
-import { env } from "../config/env";
+import config from "../config/config.js";
+import type { StringValue } from "ms"; // Import the specific type
 
+/**
+ * Signs a JWT token with the configured expiration.
+ */
 export const signToken = (id: string): string => {
-  // We explicitly type the options to match SignOptions
   const signOptions: SignOptions = {
-    expiresIn: env.JWT_EXPIRES_IN as any, // Cast to any or the specific StringValue type
+    // We cast as StringValue to satisfy the jsonwebtoken type definition
+    expiresIn: `${config.jwt.refreshExpirationDays}d` as StringValue,
   };
 
-  return jwt.sign({ id }, env.JWT_SECRET, signOptions);
+  return jwt.sign({ id }, config.jwt.secret, signOptions);
 };

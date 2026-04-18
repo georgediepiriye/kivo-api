@@ -1,4 +1,4 @@
-import Hotspot from "../models/hotspotModel";
+import Hotspot from "../../models/Hotspot.js";
 
 export const getAllHotspots = async (query: any) => {
   // 1. FILTERING

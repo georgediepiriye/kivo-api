@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import Hotspot from "../models/hotspotModel";
+import Hotspot from "../models/Hotspot";
 import { HOTSPOT_CATEGORIES } from "../lib/constants";
 
 dotenv.config();

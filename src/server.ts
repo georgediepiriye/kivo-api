@@ -1,6 +1,6 @@
-import app from "./app";
-import { connectDB } from "./config/db";
-import { env } from "./config/env";
+import app from "./app.js";
+import { connectDB } from "./config/db.js";
+import config from "./config/config.js";
 import { Server } from "http";
 
 let server: Server;
@@ -16,9 +16,9 @@ const bootstrap = async () => {
     await connectDB();
 
     // 2. Start Server only if DB is successful
-    server = app.listen(env.PORT, () => {
+    server = app.listen(config.port, () => {
       console.log(
-        `🚀 Kivo API running on port ${env.PORT} in ${env.NODE_ENV} mode`,
+        `🚀 Kivo API running on port ${config.port} in ${config.env} mode`,
       );
     });
   } catch (err) {

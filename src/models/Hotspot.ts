@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { HOTSPOT_CATEGORIES } from "../lib/constants";
+import { HOTSPOT_CATEGORIES } from "../lib/constants.js";
 
 const hotspotCategorySlugs = Object.values(HOTSPOT_CATEGORIES).map(
   (cat) => cat.slug,

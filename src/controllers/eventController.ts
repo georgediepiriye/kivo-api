@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import * as eventService from "../services/eventService";
+import * as eventService from "./services/eventService.js";
 import httpStatus from "http-status";
 
 export const createEvent = async (

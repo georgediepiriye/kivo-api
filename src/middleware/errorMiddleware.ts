@@ -1,6 +1,6 @@
 // src/middleware/errorMiddleware.ts
 import { Request, Response, NextFunction } from "express";
-import { env } from "../config/env";
+import config from "../config/config.js";
 
 export const globalErrorHandler = (
   err: any,
@@ -19,7 +19,7 @@ export const globalErrorHandler = (
   console.error(`Status: ${statusCode}`);
   console.error(`Message: ${message}`);
 
-  if (env.NODE_ENV === "development") {
+  if (config.env === "development") {
     console.error("Stack Trace:", err.stack);
   }
   console.error("\x1b[31m%s\x1b[0m", "-------------------------");
@@ -64,7 +64,7 @@ export const globalErrorHandler = (
   }
 
   // 4. SEND RESPONSE TO CLIENT
-  if (env.NODE_ENV === "development") {
+  if (config.env === "development") {
     return res.status(statusCode).json({
       status,
       message,

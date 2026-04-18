@@ -1,4 +1,4 @@
-import { Event, IEvent } from "../models/eventModel";
+import { Event, IEvent } from "../../models/Event.js";
 
 export const createNewEvent = async (
   eventData: Partial<IEvent>,
