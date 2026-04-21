@@ -35,6 +35,7 @@ const envVarsSchema = z
 
     // Payments & Services (Kivo Core)
     PAYSTACK_SECRET_KEY: z.string().describe("Paystack secret KEY"),
+    PAYSTACK_BASE_API: z.string().url().describe("Paystack base API URL"),
 
     // Infrastructure
     REDIS_PUBLIC_URL: z.string().describe("Redis public url"),
@@ -43,6 +44,8 @@ const envVarsSchema = z
     // Third-party APIs
     SENDGRID_API_KEY: z.string().describe("SendGrid API key"),
     SENTRY_DSN: z.string().url().describe("Sentry error tracking"),
+    GOOGLE_CLIENT_ID: z.string().describe("Google OAuth Client ID"),
+    GOOGLE_CLIENT_SECRET: z.string().describe("Google OAuth Client Secret"),
 
     // Logic/Taxation
     KIVO_TAX_PERCENTAGE: z
@@ -104,11 +107,16 @@ const config = {
   },
   payments: {
     paystackSecret: envVars.PAYSTACK_SECRET_KEY,
+    paystackBaseApi: envVars.PAYSTACK_BASE_API,
   },
   redisUrl: envVars.REDIS_PUBLIC_URL,
   clientUrl: envVars.CLIENT_ORIGIN,
   tax: envVars.KIVO_TAX_PERCENTAGE,
   sentryDsn: envVars.SENTRY_DSN,
+  googleOAuth: {
+    clientId: envVars.GOOGLE_CLIENT_ID,
+    clientSecret: envVars.GOOGLE_CLIENT_SECRET,
+  },
 } as const; // Added 'as const' for better type inference
 
 export default config;

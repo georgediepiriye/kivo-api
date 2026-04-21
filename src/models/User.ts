@@ -1,15 +1,17 @@
 import mongoose, { Schema, Document } from "mongoose";
 import bcrypt from "bcryptjs";
+import { USER_ROLES, UserRole } from "../lib/constants.js";
 
 // 1. Updated Interface
 export interface IUser extends Document {
+  id: string;
+  googleId?: string;
   name: string;
   email: string;
   image: string;
   password?: string;
-  role: "user" | "organizer" | "admin";
+  role: UserRole;
   interests: string[];
-  // Updated to match Event's GeoJSON structure
   location: {
     type: "Point";
     coordinates: [number, number]; // [longitude, latitude]
@@ -27,6 +29,10 @@ export interface IUser extends Document {
 // 2. Define the Schema
 const userSchema = new Schema<IUser>(
   {
+    googleId: {
+      type: String,
+      trim: true,
+    },
     name: {
       type: String,
       required: [true, "Please tell us your name"],
@@ -53,12 +59,11 @@ const userSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ["user", "organizer", "admin"],
-      default: "user",
+      enum: Object.values(USER_ROLES),
+      default: USER_ROLES.USER,
     },
     interests: [{ type: String }],
 
-    // UPDATED: Location GeoJSON (matching Event logic)
     location: {
       type: {
         type: String,

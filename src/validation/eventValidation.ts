@@ -47,7 +47,6 @@ export const createEventSchema = z.object({
       ageRestriction: z.string().default("All Ages"),
 
       // Financials & Ticketing
-      isFree: z.boolean().default(true),
       ticketingType: z.enum(["none", "internal", "external"]).default("none"),
       joinLink: z
         .string()
@@ -79,6 +78,23 @@ export const createEventSchema = z.object({
         )
         .optional()
         .default([]),
+
+      isRecurring: z.boolean().default(false),
+      recurrence: z
+        .object({
+          frequency: z
+            .enum(["daily", "weekly", "monthly", "none"])
+            .default("none"),
+          interval: z.number().int().min(1).default(1),
+          daysOfWeek: z.array(z.number().min(0).max(6)).optional(),
+          endDate: z
+            .string()
+            .refine((val) => !isNaN(Date.parse(val)), {
+              message: "Invalid recurrence end date",
+            })
+            .optional(),
+        })
+        .optional(),
 
       refundPolicy: z.enum(["none", "flexible", "24h"]).default("none"),
       organizerType: z.enum(["individual", "business"]).default("individual"),
@@ -128,6 +144,22 @@ export const createEventSchema = z.object({
         message:
           "Please complete the ticketing requirements for your selected type.",
         path: ["ticketingType"],
+      },
+    )
+    .refine(
+      (data) => {
+        // Logic: If isRecurring is true, they must pick a frequency
+        if (
+          data.isRecurring &&
+          (!data.recurrence || data.recurrence.frequency === "none")
+        ) {
+          return false;
+        }
+        return true;
+      },
+      {
+        message: "Please specify frequency for recurring events",
+        path: ["recurrence"],
       },
     ),
 });

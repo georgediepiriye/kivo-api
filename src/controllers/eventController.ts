@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import * as eventService from "./services/eventService.js";
 import httpStatus from "http-status";
+import { IUser } from "../models/User.js";
 
 export const createEvent = async (
   req: Request,
@@ -18,7 +19,8 @@ export const createEvent = async (
       eventData.isOnline = true; // Sync boolean helper
     }
 
-    const organizerId = req.user!._id.toString();
+    const user = (req as any).user as IUser;
+    const organizerId = user._id.toString();
 
     const newEvent = await eventService.createNewEvent(eventData, organizerId);
 

@@ -23,7 +23,7 @@ export interface IEvent extends Document {
   type: KivoType;
   status: "casual" | "verified" | "featured";
 
-  // Format Update
+  // Format Logic
   eventFormat: "physical" | "online" | "hybrid";
   isOnline: boolean;
 
@@ -41,14 +41,25 @@ export interface IEvent extends Document {
   organizer: mongoose.Types.ObjectId;
   organizerType: "individual" | "business";
 
+  // Pricing & Tickets
   isFree: boolean;
   ticketingType: "none" | "internal" | "external";
   ticketTiers: ITicketTier[];
   totalCapacity?: number;
 
-  // Links
+  // Recurrence Logic
+  isRecurring: boolean;
+  recurrence?: {
+    frequency: "daily" | "weekly" | "monthly" | "none";
+    interval: number;
+    daysOfWeek?: number[];
+    endDate?: Date;
+    parentId?: mongoose.Types.ObjectId;
+  };
+
+  // Links & CTA
   joinLink?: string;
-  meetingLink?: string; // Specific for Online/Hybrid
+  meetingLink?: string;
   externalTicketLink?: string;
 
   attendees: number;
@@ -81,16 +92,12 @@ const eventSchema = new Schema<IEvent>(
       type: String,
       required: [true, "Please provide a description"],
     },
-    // FORMAT LOGIC
     eventFormat: {
       type: String,
       enum: ["physical", "online", "hybrid"],
       default: "physical",
     },
-    isOnline: {
-      type: Boolean,
-      default: false,
-    },
+    isOnline: { type: Boolean, default: false },
     type: {
       type: String,
       enum: Object.keys(EVENT_TYPES),
@@ -115,15 +122,13 @@ const eventSchema = new Schema<IEvent>(
       type: {
         type: String,
         enum: ["Point"],
-        // Remove the default: "Point" here!
-        // Only set it if you have coordinates.
-        required: function () {
+        required: function (this: IEvent) {
           return this.eventFormat !== "online";
         },
       },
       coordinates: {
         type: [Number],
-        required: function () {
+        required: function (this: IEvent) {
           return this.eventFormat !== "online";
         },
       },
@@ -135,6 +140,8 @@ const eventSchema = new Schema<IEvent>(
       type: String,
       default: "https://picsum.photos/seed/kivo/1200/800",
     },
+
+    // Ticketing
     isFree: { type: Boolean, default: true },
     ticketingType: {
       type: String,
@@ -142,13 +149,26 @@ const eventSchema = new Schema<IEvent>(
       default: "none",
     },
     ticketTiers: [ticketTierSchema],
-
-    // LINK LOGIC
-    joinLink: { type: String, trim: true }, // CTA for free events
-    meetingLink: { type: String, trim: true }, // The actual Zoom/Meet URL
-    externalTicketLink: { type: String, trim: true },
-
     totalCapacity: { type: Number, default: null },
+
+    // Recurrence
+    isRecurring: { type: Boolean, default: false },
+    recurrence: {
+      frequency: {
+        type: String,
+        enum: ["daily", "weekly", "monthly", "none"],
+        default: "none",
+      },
+      interval: { type: Number, default: 1 },
+      daysOfWeek: [{ type: Number }],
+      endDate: { type: Date },
+      parentId: { type: Schema.Types.ObjectId, ref: "Event", default: null },
+    },
+
+    // Metadata & Engagement
+    joinLink: { type: String, trim: true },
+    meetingLink: { type: String, trim: true },
+    externalTicketLink: { type: String, trim: true },
     attendees: { type: Number, default: 0 },
     participantImages: [{ type: String }],
     organizer: { type: Schema.Types.ObjectId, ref: "User", required: true },
@@ -173,25 +193,36 @@ const eventSchema = new Schema<IEvent>(
   },
 );
 
-// Virtual for Price
-eventSchema.virtual("startingPrice").get(function () {
-  if (this.isFree || !this.ticketTiers || this.ticketTiers.length === 0)
-    return 0;
-  return Math.min(...this.ticketTiers.map((tier) => tier.price));
-});
+/**
+ * PRE-SAVE HOOK
+ * Using async function to automatically handle middleware flow without next()
+ */
+eventSchema.pre<IEvent>("save", async function (this: IEvent) {
+  // 1. Sync isOnline helper
+  this.isOnline =
+    this.eventFormat === "online" || this.eventFormat === "hybrid";
 
-// Auto-calculate capacity
-eventSchema.pre("save", function () {
+  // 2. Pricing and Capacity logic
   if (this.ticketingType === "internal" && this.ticketTiers?.length > 0) {
     this.totalCapacity = this.ticketTiers.reduce(
       (acc, tier) => acc + (tier.capacity || 0),
       0,
     );
+
+    const hasPaidTier = this.ticketTiers.some((tier) => tier.price > 0);
+    this.isFree = !hasPaidTier;
+  } else if (this.ticketingType === "external") {
+    this.isFree = false;
+  } else {
+    this.isFree = true;
   }
 });
 
-// In your Event Model
-eventSchema.virtual("priceLabel").get(function () {
+/**
+ * VIRTUALS
+ */
+
+eventSchema.virtual("priceLabel").get(function (this: IEvent) {
   if (
     this.ticketingType === "none" ||
     !this.ticketTiers ||
@@ -204,15 +235,25 @@ eventSchema.virtual("priceLabel").get(function () {
   const min = Math.min(...prices);
   const max = Math.max(...prices);
 
-  if (min === 0 && max === 0) return "Free";
-  if (min === 0 && max > 0) return `Free - ₦${max.toLocaleString()}`;
+  if (max === 0) return "Free";
+  if (min === 0 && max > 0) return "Free +";
   if (min === max) return `₦${min.toLocaleString()}`;
-  return `₦${min.toLocaleString()} - ₦${max.toLocaleString()}`;
+  return `From ₦${min.toLocaleString()}`;
 });
 
-// Keep indexes but allow sparse for location
+eventSchema.virtual("startingPrice").get(function (this: IEvent) {
+  if (this.isFree || !this.ticketTiers || this.ticketTiers.length === 0)
+    return 0;
+  return Math.min(...this.ticketTiers.map((tier) => tier.price));
+});
+
+/**
+ * INDEXES
+ */
 eventSchema.index({ location: "2dsphere" }, { sparse: true });
 eventSchema.index({ "location.neighborhood": 1 }, { sparse: true });
+eventSchema.index({ "recurrence.parentId": 1 });
+eventSchema.index({ startDate: 1 });
 
 export const Event =
   mongoose.models.Event || mongoose.model<IEvent>("Event", eventSchema);

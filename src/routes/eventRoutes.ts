@@ -6,17 +6,23 @@ import { createEventSchema } from "../validation/eventValidation.js";
 
 const router = Router();
 
-// Public Routes
+// --- PUBLIC ROUTES ---
 router.get("/", eventController.getAllEvents);
 router.get("/nearby", eventController.getNearbyEvents);
 router.get("/:id", eventController.getEvent);
 
-// Protected Routes
+// --- PROTECTED ROUTES GATE ---
+// Everything below this line now requires a valid login cookie
+router.use(protect);
+
 router.post(
   "/",
-  protect,
+  restrictTo("organizer", "admin"), // Only organizers can create
   validate(createEventSchema),
   eventController.createEvent,
 );
+
+// router.patch("/:id", eventController.updateEvent);
+// router.delete("/:id", eventController.deleteEvent);
 
 export default router;

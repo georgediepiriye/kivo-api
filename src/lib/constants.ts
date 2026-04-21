@@ -1,4 +1,15 @@
-// @/lib/constants.ts
+export const USER_ROLES = {
+  USER: "user",
+  ORGANIZER: "organizer",
+  ADMIN: "admin",
+} as const;
+
+export const ORDER_STATUS = {
+  PENDING: "pending",
+  COMPLETED: "completed",
+  FAILED: "failed",
+  EXPIRED: "expired",
+} as const;
 
 export const EVENT_TYPES = {
   activity: {
@@ -166,7 +177,21 @@ export const HOTSPOT_STATUS = {
   HOT: { label: "Live Hotspot", color: "#ef4444" }, // Red
 } as const;
 
+/**
+ * TICKET STATUS
+ * Tracking the lifecycle of a purchase from issuance to entry.
+ */
+export const TICKET_STATUS = {
+  valid: { label: "Valid", color: "#22c55e" }, // Green
+  used: { label: "Checked In", color: "#64748b" }, // Slate
+  refunded: { label: "Refunded", color: "#ef4444" }, // Red
+  cancelled: { label: "Cancelled", color: "#000000" }, // Black
+} as const;
+
 export type KivoType = keyof typeof EVENT_TYPES;
 export type EventCategory = keyof typeof EVENT_CATEGORIES;
 export type HotspotCategory = keyof typeof HOTSPOT_CATEGORIES;
 export type HotspotStatus = keyof typeof HOTSPOT_STATUS;
+export type TicketStatus = keyof typeof TICKET_STATUS;
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
+export type OrderStatus = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS];
