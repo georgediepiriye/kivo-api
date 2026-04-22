@@ -10,6 +10,9 @@ import httpStatus from "http-status";
 import AppError from "./utils/AppError.js";
 import * as webhookController from "./controllers/webhookController.js";
 import cookieParser from "cookie-parser";
+import config from "./config/config.js";
+import passport from "passport";
+import "./config/passport.js";
 
 const app = express();
 
@@ -20,10 +23,12 @@ app.use(helmet()); // Security headers
 app.use(cookieParser()); // Parse cookies
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: config.clientUrl,
     credentials: true,
   }),
 );
+
+app.use(passport.initialize());
 
 app.use((req, res, next) => {
   console.log(`Incoming Request: ${req.method} ${req.originalUrl}`);

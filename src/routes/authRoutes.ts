@@ -10,29 +10,40 @@ const router = Router();
 
 router.post("/signup", validate(signupSchema), authController.signup);
 router.post("/login", validate(loginSchema), authController.login);
+router.post("/logout", authController.logout);
+
+router.get("/me", authController.getMe);
+
+// 1. Redirect user to Google
 router.get(
   "/google",
   passport.authenticate("google", { scope: ["profile", "email"] }),
 );
 
+// 2. Google redirects back here
 router.get(
   "/google/callback",
-  passport.authenticate("google", { session: false }),
+  passport.authenticate("google", {
+    session: false,
+    failureRedirect: `${config.clientUrl}/login`,
+  }),
   (req, res) => {
-    // User is now authenticated. Generate a Kivo JWT.
-    const token = jwt.sign({ id: (req.user as any)._id }, config.jwt.secret!, {
+    // User is authenticated by Google, now we issue our own Kivo JWT
+    const user = req.user as any;
+
+    const token = jwt.sign({ id: user._id }, config.jwt.secret!, {
       expiresIn: "7d",
     });
 
-    // Set the cookie
-    res.cookie("kivo_auth_token", token, {
+    // Set HTTP-Only Cookie
+    res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Only send over HTTPS in production
-      sameSite: "lax", // Helps prevent CSRF attacks
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // Redirect to dashboard (No token in the URL anymore!)
+    // Final redirect to frontend
     res.redirect(`${config.clientUrl}/profile`);
   },
 );

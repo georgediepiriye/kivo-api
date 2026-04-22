@@ -53,7 +53,15 @@ const userSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      required: [true, "Please provide a password"],
+      // Change the required property to a function
+      required: [
+        function () {
+          // 'this' refers to the user document.
+          // If googleId is NOT present, password IS required.
+          return !this.googleId;
+        },
+        "Please provide a password",
+      ],
       minlength: 5,
       select: false,
     },
@@ -102,10 +110,14 @@ userSchema.index({ location: "2dsphere" });
  * PASSWORD HASHING MIDDLEWARE
  */
 userSchema.pre<IUser>("save", async function () {
-  if (!this.isModified("password")) return;
-  if (this.password) {
-    this.password = await bcrypt.hash(this.password, 12);
+  // 1. If password hasn't been changed or doesn't exist, exit the function
+  // In an async function, 'return' is the same as calling 'next()'
+  if (!this.isModified("password") || !this.password) {
+    return;
   }
+
+  // 2. Hash the password and re-assign it to the document
+  this.password = await bcrypt.hash(this.password, 12);
 });
 
 userSchema.methods.correctPassword = async function (

@@ -40,6 +40,7 @@ const envVarsSchema = z
     // Infrastructure
     REDIS_PUBLIC_URL: z.string().describe("Redis public url"),
     CLIENT_ORIGIN: z.string().url().describe("Frontend client URL"),
+    API_URL: z.string().url().describe("Public API URL"),
 
     // Third-party APIs
     SENDGRID_API_KEY: z.string().describe("SendGrid API key"),
@@ -111,12 +112,14 @@ const config = {
   },
   redisUrl: envVars.REDIS_PUBLIC_URL,
   clientUrl: envVars.CLIENT_ORIGIN,
+  apiUrl: envVars.API_URL,
+  sendGridApiKey: envVars.SENDGRID_API_KEY,
   tax: envVars.KIVO_TAX_PERCENTAGE,
   sentryDsn: envVars.SENTRY_DSN,
   googleOAuth: {
     clientId: envVars.GOOGLE_CLIENT_ID,
     clientSecret: envVars.GOOGLE_CLIENT_SECRET,
   },
-} as const; // Added 'as const' for better type inference
+} as const;
 
 export default config;

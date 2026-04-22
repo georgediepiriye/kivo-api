@@ -8,35 +8,32 @@ passport.use(
     {
       clientID: config.googleOAuth.clientId,
       clientSecret: config.googleOAuth.clientSecret,
-      callbackURL: "/v1/auth/google/callback",
+      callbackURL: `${config.apiUrl}/v1/auth/google/callback`,
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
         const email = profile.emails?.[0].value;
 
-        // 1. Search for a user by their Google ID OR their Email
+        // Account Linking Logic: Search by Google ID OR Email
         let user = await User.findOne({
           $or: [{ googleId: profile.id }, { email: email }],
         });
 
         if (user) {
-          // 2. If user exists but doesn't have a googleId (signed up via email/pass before)
-          // Update the record so they can log in via Google next time
           if (!user.googleId) {
             user.googleId = profile.id;
-            // Also sync the avatar if they don't have one
             if (!user.avatar) user.avatar = profile.photos?.[0].value;
             await user.save();
           }
           return done(null, user);
         }
 
-        // 3. No user exists at all -> Create a new account
+        // New User Creation
         user = await User.create({
           googleId: profile.id,
-          name: profile.name?.givenName + " " + profile.name?.familyName,
+          name: profile.displayName,
           email: email,
-          image: profile.photos?.[0].value,
+          avatar: profile.photos?.[0].value,
         });
 
         return done(null, user);
@@ -46,3 +43,7 @@ passport.use(
     },
   ),
 );
+
+// Required even if not using sessions for Passport's internal flow
+passport.serializeUser((user: any, done) => done(null, user.id));
+passport.deserializeUser((id, done) => done(null, { id }));
