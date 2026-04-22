@@ -24,8 +24,8 @@ export const protect = (async (
     // 1. Get token from Cookies or Authorization Header
     let token: string | undefined;
 
-    if (req.cookies && req.cookies.kivo_auth_token) {
-      token = req.cookies.kivo_auth_token;
+    if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
     } else if (req.headers.authorization?.startsWith("Bearer")) {
       token = req.headers.authorization.split(" ")[1];
     }
@@ -33,8 +33,8 @@ export const protect = (async (
     if (!token) {
       return next(
         new AppError(
-          "You are not logged in. Please log in to get access.",
           httpStatus.UNAUTHORIZED,
+          "You are not logged in. Please log in to get access.",
         ),
       );
     }
@@ -50,8 +50,8 @@ export const protect = (async (
     if (!currentUser) {
       return next(
         new AppError(
-          "The user belonging to this token no longer exists.",
           httpStatus.UNAUTHORIZED,
+          "The user belonging to this token no longer exists.",
         ),
       );
     }
@@ -63,10 +63,49 @@ export const protect = (async (
   } catch (error) {
     return next(
       new AppError(
-        "Invalid token or session expired. Please log in again.",
         httpStatus.UNAUTHORIZED,
+        "Invalid token or session expired. Please log in again.",
       ),
     );
+  }
+}) as RequestHandler;
+
+/**
+ * OPTIONAL PROTECT MIDDLEWARE
+ * Tries to identify the user but doesn't block the request if they are a guest.
+ */
+export const optionalProtect = (async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    let token: string | undefined;
+
+    // Look for the cookie we identified earlier: "token"
+    if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
+    } else if (req.headers.authorization?.startsWith("Bearer")) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    // If no token, just move to the controller as a guest
+    if (!token) {
+      return next();
+    }
+
+    // If there is a token, try to verify it
+    const decoded = jwt.verify(token, config.jwt.secret) as any;
+    const currentUser = await User.findById(decoded.id);
+
+    if (currentUser) {
+      (req as any).user = currentUser;
+    }
+
+    next();
+  } catch (error) {
+    // If token is invalid, we still allow them to proceed as a guest
+    next();
   }
 }) as RequestHandler;
 
@@ -81,8 +120,8 @@ export const restrictTo = (...roles: string[]) => {
     if (!user || !roles.includes(user.role)) {
       return next(
         new AppError(
-          "You do not have permission to perform this action",
           httpStatus.FORBIDDEN,
+          "You do not have permission to perform this action",
         ),
       );
     }

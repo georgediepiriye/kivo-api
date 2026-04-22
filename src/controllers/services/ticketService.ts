@@ -134,10 +134,6 @@ export const processBooking = async (
         ...buyerDetails,
       },
     });
-
-    console.log("User ID_____", userId);
-    console.log("Payment Initialization Response:", payment);
-
     // 4. CREATE ORDER RECORD
     const [order] = await Order.create(
       [

@@ -55,7 +55,7 @@ export const login = catchAsync(
     // 4. Send response
     res.status(httpStatus.OK).json({
       status: "success",
-      token, // Still sending token in body for mobile/alternative clients
+      token,
       data: {
         user: {
           id: user._id,

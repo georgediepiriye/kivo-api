@@ -6,7 +6,6 @@ import config from "../config/config.js";
 
 export const handlePaystackWebhook = async (req: Request, res: Response) => {
   try {
-    console.log("_____Received Paystack webhook:", req.body); // Log the raw body for debugging
     // 1. Verify the signature (Security: Ensure this actually came from Paystack)
     const hash = crypto
       .createHmac("sha512", config.payments.paystackSecret!)

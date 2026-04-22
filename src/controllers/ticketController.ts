@@ -20,8 +20,7 @@ export const initializeBooking = async (
   try {
     const { eventId, tierName, quantity, email, firstName, lastName } =
       req.body;
-
-    const userId = (req.user as any)?._id?.toString() || null;
+    const userId = (req.user as any)?.id?.toString() || null;
 
     const result = await ticketService.processBooking(
       userId,

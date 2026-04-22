@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as ticketController from "../controllers/ticketController.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { optionalProtect } from "../middleware/authMiddleware.js";
 import { validate } from "../middleware/validate.js";
 import { bookTicketSchema } from "../validation/ticketValidation.js";
 
@@ -9,6 +9,7 @@ const router = Router();
 //Initialize Booking (Starts the booking flow)
 router.post(
   "/book",
+  optionalProtect,
   validate(bookTicketSchema),
   ticketController.initializeBooking,
 );
