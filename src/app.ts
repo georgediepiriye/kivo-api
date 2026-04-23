@@ -18,27 +18,42 @@ import "./config/passport.js";
 const app = express();
 
 /**
+ * PRODUCTION TRUST PROXY
+ * Required for Render to handle 'secure' cookies and 'https' headers correctly.
+ */
+app.enable("trust proxy");
+
+/**
  * GLOBAL MIDDLEWARES
  */
-app.use(helmet()); // Security headers
-app.use(cookieParser()); // Parse cookies
-app.use(
-  cors({
-    origin: config.clientUrl,
-    credentials: true,
-  }),
-);
+app.use(helmet());
+app.use(cookieParser());
+
+/**
+ * CORS CONFIGURATION
+ * 1. origin: Must match your frontend URL exactly (NO trailing slash).
+ * 2. credentials: true is required for HttpOnly cookies to work.
+ */
+const corsOptions = {
+  origin: config.clientUrl,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+};
+
+app.use(cors(corsOptions));
+
+/**
+ * PREFLIGHT HANDLING
+ * Using a Regex (/^\/.*$/) to match all paths.
+ * This avoids the 'path-to-regexp' PathError in modern Express versions.
+ */
+app.options(/^\/.*$/, cors(corsOptions));
 
 app.use(passport.initialize());
 
-app.use((req, res, next) => {
-  console.log(`Incoming Request: ${req.method} ${req.originalUrl}`);
-  next();
-});
-
 /**
- * 1. PAYSTACK WEBHOOK (BEFORE express.json)
- * We use express.raw so we can verify the signature accurately.
+ * 1. PAYSTACK WEBHOOK (STRICTLY BEFORE express.json)
  */
 app.post(
   "/v1/webhooks/paystack",
@@ -46,15 +61,30 @@ app.post(
   webhookController.handlePaystackWebhook,
 );
 
-app.use(express.json({ limit: "10kb" })); // Body parser
+/**
+ * 2. BODY PARSERS
+ */
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
 /**
- * ROUTES
+ * LOGGING (Development only)
+ */
+if (process.env.NODE_ENV === "development") {
+  app.use((req, res, next) => {
+    console.log(`Incoming Request: ${req.method} ${req.originalUrl}`);
+    next();
+  });
+}
+
+/**
+ * API ROUTES
  */
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({
     status: "success",
     message: "Kivo API is up and running",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -66,10 +96,12 @@ app.use("/v1/users", userRouter);
 
 /**
  * 404 HANDLER
- * Catches all routes that don't match the ones above
+ * Using Regex to catch all undefined routes without crashing the parser.
  */
-app.use((_, __, next) => {
-  next(new AppError(httpStatus.NOT_FOUND, "Not found"));
+app.all(/^\/.*$/, (_, __, next) => {
+  next(
+    new AppError(httpStatus.NOT_FOUND, "The requested resource was not found."),
+  );
 });
 
 /**

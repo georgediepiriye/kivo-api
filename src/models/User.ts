@@ -48,15 +48,13 @@ const userSchema = new Schema<IUser>(
     image: {
       type: String,
       default: function (this: IUser) {
-        return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(this.name || "Kivo")}`;
+        return `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(this.name || "Kivo")}`;
       },
     },
     password: {
       type: String,
-      // Change the required property to a function
       required: [
         function () {
-          // 'this' refers to the user document.
           // If googleId is NOT present, password IS required.
           return !this.googleId;
         },

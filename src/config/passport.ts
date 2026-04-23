@@ -33,7 +33,7 @@ passport.use(
           googleId: profile.id,
           name: profile.displayName,
           email: email,
-          avatar: profile.photos?.[0].value,
+          image: profile.photos?.[0].value,
         });
 
         return done(null, user);

@@ -23,3 +23,35 @@ export const getProfile = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized access" });
+    }
+
+    const { name, email, image, interests, location, active } = req.body;
+
+    const updatedProfile = await userService.updateUserProfile(userId, {
+      name,
+      email,
+      image,
+      interests,
+      location,
+      active,
+    });
+
+    return res.status(200).json({
+      status: "success",
+      data: updatedProfile,
+    });
+  } catch (error: any) {
+    const statusCode = error.message.includes("unique") ? 400 : 500;
+    return res.status(statusCode).json({
+      status: "error",
+      message: error.message,
+    });
+  }
+};

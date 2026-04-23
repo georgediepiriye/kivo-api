@@ -1,10 +1,16 @@
 import { Router } from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import * as userController from "../controllers/userController.js";
+import { updateProfileSchema } from "../validation/userValidation.js";
+import { validate } from "../middleware/validate.js";
 
 const router = Router();
 
-// Only logged-in users can hit this
 router.get("/profile", protect, userController.getProfile);
-
+router.patch(
+  "/updateMe",
+  protect,
+  validate(updateProfileSchema),
+  userController.updateProfile,
+);
 export default router;
