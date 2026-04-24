@@ -53,7 +53,6 @@ const ticketSchema = new Schema<ITicket>(
 );
 
 // Indexes for performance
-ticketSchema.index({ ticketCode: 1 });
 ticketSchema.index({ owner: 1 });
 ticketSchema.index({ "buyerInfo.email": 1 });
 

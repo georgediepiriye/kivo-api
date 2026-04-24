@@ -4,6 +4,7 @@ import { User, IUser } from "../models/User.js";
 import AppError from "../utils/AppError.js";
 import httpStatus from "http-status";
 import config from "../config/config.js";
+import logger from "../utils/logger.js";
 
 interface JwtPayload {
   id: string;
@@ -31,6 +32,9 @@ export const protect = (async (
     }
 
     if (!token) {
+      logger.debug(
+        `Protect Middleware: No token provided for ${req.originalUrl}`,
+      );
       return next(
         new AppError(
           httpStatus.UNAUTHORIZED,
@@ -48,6 +52,9 @@ export const protect = (async (
     // 3. Check if user still exists in DB
     const currentUser = await User.findById(decoded.id);
     if (!currentUser) {
+      logger.warn(
+        `Auth Failure: Valid token but User ${decoded.id} no longer exists.`,
+      );
       return next(
         new AppError(
           httpStatus.UNAUTHORIZED,
@@ -60,7 +67,8 @@ export const protect = (async (
     // Use 'as any' to bypass the conflict with Express's global User type
     (req as any).user = currentUser as IUser;
     next();
-  } catch (error) {
+  } catch (error: any) {
+    logger.warn(`JWT Verification Failed: ${error.message} from IP: ${req.ip}`);
     return next(
       new AppError(
         httpStatus.UNAUTHORIZED,
@@ -103,7 +111,7 @@ export const optionalProtect = (async (
     }
 
     next();
-  } catch (error) {
+  } catch (error: any) {
     // If token is invalid, we still allow them to proceed as a guest
     next();
   }
@@ -118,6 +126,9 @@ export const restrictTo = (...roles: string[]) => {
     const user = (req as any).user as IUser | undefined;
 
     if (!user || !roles.includes(user.role)) {
+      logger.warn(
+        `Forbidden Access Attempt: User ${user?._id || "Anonymous"} tried to access ${req.originalUrl} - Required Roles: [${roles}]`,
+      );
       return next(
         new AppError(
           httpStatus.FORBIDDEN,

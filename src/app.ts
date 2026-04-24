@@ -1,6 +1,8 @@
 import express, { Request, Response } from "express";
 import helmet from "helmet";
 import cors from "cors";
+import morgan from "morgan";
+import logger from "./utils/logger.js";
 import { globalErrorHandler } from "./middleware/errorMiddleware.js";
 import authRouter from "./routes/authRoutes.js";
 import eventRouter from "./routes/eventRoutes.js";
@@ -17,23 +19,21 @@ import "./config/passport.js";
 
 const app = express();
 
-/**
- * PRODUCTION TRUST PROXY
- * Required for Render to handle 'secure' cookies and 'https' headers correctly.
- */
 app.enable("trust proxy");
 
 /**
- * GLOBAL MIDDLEWARES
+ * LOGGING MIDDLEWARE (Morgan + Winston)
  */
+const stream = {
+  write: (message: string) => logger.http(message.trim()),
+};
+
+// Use 'combined' for production (includes IP/User Agent), 'dev' for local
+app.use(morgan(config.env === "production" ? "combined" : "dev", { stream }));
+
 app.use(helmet());
 app.use(cookieParser());
 
-/**
- * CORS CONFIGURATION
- * 1. origin: Must match your frontend URL exactly (NO trailing slash).
- * 2. credentials: true is required for HttpOnly cookies to work.
- */
 const corsOptions = {
   origin: config.clientUrl,
   credentials: true,
@@ -42,18 +42,12 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-/**
- * PREFLIGHT HANDLING
- * Using a Regex (/^\/.*$/) to match all paths.
- * This avoids the 'path-to-regexp' PathError in modern Express versions.
- */
 app.options(/^\/.*$/, cors(corsOptions));
 
 app.use(passport.initialize());
 
 /**
- * 1. PAYSTACK WEBHOOK (STRICTLY BEFORE express.json)
+ * 1. PAYSTACK WEBHOOK
  */
 app.post(
   "/v1/webhooks/paystack",
@@ -66,16 +60,6 @@ app.post(
  */
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
-
-/**
- * LOGGING (Development only)
- */
-if (process.env.NODE_ENV === "development") {
-  app.use((req, res, next) => {
-    console.log(`Incoming Request: ${req.method} ${req.originalUrl}`);
-    next();
-  });
-}
 
 /**
  * API ROUTES
@@ -94,19 +78,12 @@ app.use("/v1/hotspots", hotspotRouter);
 app.use("/v1/tickets", ticketRouter);
 app.use("/v1/users", userRouter);
 
-/**
- * 404 HANDLER
- * Using Regex to catch all undefined routes without crashing the parser.
- */
 app.all(/^\/.*$/, (_, __, next) => {
   next(
     new AppError(httpStatus.NOT_FOUND, "The requested resource was not found."),
   );
 });
 
-/**
- * GLOBAL ERROR MIDDLEWARE
- */
 app.use(globalErrorHandler);
 
 export default app;

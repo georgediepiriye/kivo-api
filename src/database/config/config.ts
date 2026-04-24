@@ -1,5 +1,6 @@
 import promptSync from "prompt-sync";
 import config from "../../config/config.js";
+import logger from "../../utils/logger.js";
 
 // 1. Keep the Enum for consistency
 enum ENVS {
@@ -15,25 +16,23 @@ const configEnvs = {
     url: config.db.url as string,
   },
   [ENVS.TEST]: {
-    // Better to have a dedicated TEST_DATABASE_URL,
-    // but this fallback works if your dev URL is local
     url: config.db.url?.replace("Kivo", "Kivo-Test") as string,
   },
   [ENVS.STAGE]: {
-    url: config.db.url as string, // config.db.url already handles env logic
+    url: config.db.url as string,
   },
   [ENVS.PROD]: {
     url: config.db.url as string,
   },
 };
 
-const selectDB = (
-  env: ENVS, // Use the Enum type here
-  devOverride: boolean = true,
-): { url: string } => {
+const selectDB = (env: ENVS, devOverride: boolean = true): { url: string } => {
+  logger.info(`Database Selector: Initializing for environment [${env}]`);
+
   const database = configEnvs[env];
 
   if (!database || !database.url) {
+    logger.error(`Database Selector Error: No URL mapping for ${env}`);
     throw new Error(`No database URL found for environment: ${env}`);
   }
 
@@ -41,8 +40,10 @@ const selectDB = (
 
   switch (env) {
     case ENVS.TEST:
-      // Safety: Never let tests run against Atlas (Cloud)
       if (isCloudDB) {
+        logger.error(
+          `CRITICAL SECURITY BREACH: Attempted to run TEST suite against CLOUD DB`,
+        );
         throw new Error(
           `❌ TERMINATING: You are trying to run tests against a CLOUD database. Use a local DB.`,
         );
@@ -51,13 +52,19 @@ const selectDB = (
 
     case ENVS.DEV:
       if (isCloudDB) {
+        logger.warn(
+          `CLOUD DB DETECTED: DB operations will hit Atlas (Cloud) for environment [${env}]`,
+        );
+
         if (!devOverride) {
+          logger.error(
+            `Database Selector Error: Dev override disabled for Cloud DB connection.`,
+          );
           throw new Error(
             `❌ TERMINATING: Seed/Dev override disabled for Cloud DB.`,
           );
         }
 
-        // Use prompt-sync to get manual confirmation
         const prompt = promptSync();
         console.log(
           `\n⚠️  \x1b[31mWARNING\x1b[0m: Connection string detected as CLOUD (Atlas).`,
@@ -67,12 +74,22 @@ const selectDB = (
         );
 
         if (userConfirmation.toLowerCase() !== "y") {
+          logger.info(
+            `Database process aborted by user for environment: ${env}`,
+          );
           throw new Error("Process terminated by user.");
         }
+
+        logger.info(
+          `User confirmed Cloud DB connection for ${env}. Proceeding...`,
+        );
       }
       break;
 
     default:
+      logger.info(
+        `Connecting to ${isCloudDB ? "Cloud" : "Local"} DB for ${env}`,
+      );
       break;
   }
 

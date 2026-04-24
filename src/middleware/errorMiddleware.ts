@@ -1,6 +1,6 @@
-// src/middleware/errorMiddleware.ts
 import { Request, Response, NextFunction } from "express";
 import config from "../config/config.js";
+import logger from "../utils/logger.js"; // Import your winston logger
 
 export const globalErrorHandler = (
   err: any,
@@ -8,25 +8,27 @@ export const globalErrorHandler = (
   res: Response,
   next: NextFunction,
 ) => {
-  // 1. INITIALIZE DEFAULTS
   let statusCode = err.statusCode || 500;
   let status = err.status || "error";
   let message = err.message;
 
-  // 2. MANDATORY SERVER LOGGING (Terminal)
-  console.error("\x1b[31m%s\x1b[0m", "------- ERROR LOG -------");
-  console.error(`Method: ${req.method} | URL: ${req.originalUrl}`);
-  console.error(`Status: ${statusCode}`);
-  console.error(`Message: ${message}`);
-
-  if (config.env === "development") {
-    console.error("Stack Trace:", err.stack);
+  // 1. LOG THE ERROR (The Winston Way)
+  // We log before we start "humanizing" the message so we have the raw technical data.
+  if (statusCode >= 500) {
+    // This is a server crash/bug - Use 'error' level
+    logger.error(
+      `SYSTEM ERROR: [${req.method}] ${req.originalUrl} | Status: ${statusCode} | Message: ${message} | Stack: ${err.stack}`,
+    );
+  } else {
+    // This is a user/client error (400s) - Use 'warn' level
+    logger.warn(
+      `OPERATIONAL ERROR: [${req.method}] ${req.originalUrl} | Status: ${statusCode} | Message: ${message}`,
+    );
   }
-  console.error("\x1b[31m%s\x1b[0m", "-------------------------");
 
-  // 3. SPECIALIZED ERROR HANDLING (Humanizing technical messages)
+  // 2. SPECIALIZED ERROR HANDLING (Same as your current logic)
 
-  // Handle Mongoose Duplicate Key (e.g., Email already exists)
+  // Mongoose Duplicate Key
   if (err.code === 11000) {
     statusCode = 400;
     status = "fail";
@@ -34,36 +36,22 @@ export const globalErrorHandler = (
     message = `${field.charAt(0).toUpperCase() + field.slice(1)} already in use.`;
   }
 
-  // Handle Mongoose Validation Errors (e.g., required fields, length)
+  // Mongoose Validation
   if (err.name === "ValidationError") {
     statusCode = 400;
     status = "fail";
     message = Object.values(err.errors)
-      .map((el: any) => {
-        let msg = el.message;
-        // Strip out technical pathing like "body.", "path", or "User validation failed"
-        msg = msg.replace(/User validation failed: /g, "");
-        msg = msg.replace(/body\./g, "");
-        msg = msg.replace(/path /g, "");
-        // Capitalize for professional look
-        return msg.charAt(0).toUpperCase() + msg.slice(1);
-      })
+      .map(
+        (el: any) =>
+          el.message
+            .replace(/body\./g, "")
+            .charAt(0)
+            .toUpperCase() + el.message.slice(1),
+      )
       .join(". ");
   }
 
-  // Handle Zod or other Schema Validation (if you use them)
-  if (err.name === "ZodError") {
-    statusCode = 400;
-    status = "fail";
-    message = err.issues
-      .map((issue: any) => {
-        const field = issue.path[issue.path.length - 1];
-        return `${field.charAt(0).toUpperCase() + field.slice(1)} is required`;
-      })
-      .join(". ");
-  }
-
-  // 4. SEND RESPONSE TO CLIENT
+  // 3. SEND RESPONSE
   if (config.env === "development") {
     return res.status(statusCode).json({
       status,
@@ -73,15 +61,12 @@ export const globalErrorHandler = (
     });
   }
 
-  // PRODUCTION: Send clean messages for operational errors
+  // PRODUCTION: Handle Operational vs Unexpected
   if (err.isOperational || statusCode < 500) {
-    return res.status(statusCode).json({
-      status,
-      message,
-    });
+    return res.status(statusCode).json({ status, message });
   }
 
-  // PRODUCTION: Fallback for unexpected bugs (leak no details)
+  // Final fallback
   return res.status(500).json({
     status: "error",
     message: "Something went very wrong on our end!",
