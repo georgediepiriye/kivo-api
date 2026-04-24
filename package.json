@@ -8,8 +8,9 @@
     "build": "tsc",
     "seed": "ts-node src/scripts/seedData.ts",
     "start": "node dist/server.js",
-    "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
-    "test:watch": "jest --watchAll"
+    "test": "NODE_OPTIONS='--experimental-vm-modules' jest --runInBand",
+    "test:watch": "jest --watchAll",
+    "test:coverage": "npm test -- --coverage"
   },
   "keywords": [],
   "author": "",

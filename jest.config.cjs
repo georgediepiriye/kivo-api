@@ -1,9 +1,33 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
-  preset: "ts-jest/presets/default-esm", // Specific ESM preset
+  preset: "ts-jest/presets/default-esm",
   testEnvironment: "node",
   testMatch: ["**/__tests__/**/*.test.ts"],
   extensionsToTreatAsEsm: [".ts"],
+
+  // --- COVERAGE CONFIGURATION ---
+  collectCoverage: true,
+  coverageDirectory: "coverage",
+  coverageReporters: ["text", "lcov", "clover"],
+  collectCoverageFrom: [
+    "src/**/*.ts",
+    "!src/__tests__/**",
+    "!src/lib/constants.ts",
+    "!src/config/**",
+    "!src/scripts/**", // Exclude your selectDB or manual scripts
+    "!src/types/**",
+  ],
+  // Optional: Uncomment to enforce 80% coverage on all PRs
+  /*
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80,
+    },
+  },
+  */
 
   transform: {
     "^.+\\.tsx?$": [
@@ -11,17 +35,15 @@ module.exports = {
       {
         useESM: true,
         diagnostics: {
-          ignoreCodes: [151001, 151002], // Clears that TS warning
+          ignoreCodes: [151001, 151002],
         },
       },
     ],
   },
 
-  // This tells Jest: "Don't ignore Faker, I need you to transform it"
   transformIgnorePatterns: ["node_modules/(?!(@faker-js/faker)/)"],
 
   moduleNameMapper: {
-    // This handles the NodeNext requirement of .js extensions in imports
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
 
