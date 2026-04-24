@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
       - run: npm ci
       - name: Start Mongo
         run: |
@@ -31,5 +31,10 @@ jobs:
           DATABASE_URL: mongodb://localhost:27017/Kivo-Test?replicaSet=rs0
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           PAYSTACK_SECRET_KEY: ${{ secrets.PAYSTACK_SECRET_KEY }}
+          PAYSTACK_BASE_API: https://api.paystack.co
+          REDIS_PUBLIC_URL: redis://localhost:6379
+          CLIENT_ORIGIN: http://localhost:3000
+          API_URL: http://localhost:5000
+          KIVO_TAX_PERCENTAGE: 0.05
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
