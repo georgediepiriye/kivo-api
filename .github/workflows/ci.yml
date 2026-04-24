@@ -1,17 +1,15 @@
-name: Kivo API CI
-
+name: Kivo-CI
 on:
   push:
     branches: [main, dev]
   pull_request:
     branches: [main]
-
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
   test:
     runs-on: ubuntu-latest
-
     services:
-      # MongoDB Service configured for Replica Set (Required for Transactions)
       mongodb:
         image: mongo:6.0
         ports:
@@ -21,47 +19,25 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
+          --name mongodb
+        command: ["--replSet", "rs0", "--bind_ip_all"]
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Initialize MongoDB Replica Set
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - name: Start Replica Set
         run: |
-          docker exec ${{ job.services.mongodb.id }} mongosh --eval "rs.initiate()"
-          sleep 5 # Wait for primary election
-
+          docker exec mongodb mongosh --eval "rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] })"
+          sleep 10
       - name: Run Tests
         run: npm test
         env:
-          # --- Environment Variables ---
           NODE_ENV: test
-          PORT: 5000
-
-          # Use the service container address
           DATABASE_URL: mongodb://localhost:27017/Kivo-Test?replicaSet=rs0
-
-          # Secrets pulled from GitHub Repo Settings
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_EXPIRATION_DAYS: 1
-
           PAYSTACK_SECRET_KEY: ${{ secrets.PAYSTACK_SECRET_KEY }}
-          PAYSTACK_BASE_API: https://api.paystack.co
-
-          # Mock/Test infrastructure
-          CLIENT_ORIGIN: http://localhost:3000
-          API_URL: http://localhost:5000
-
-          # Dummy values for external APIs that aren't needed for logic tests
-          SENDGRID_API_KEY: SG.dummy_key
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
