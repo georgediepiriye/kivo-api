@@ -4,8 +4,6 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main]
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -14,21 +12,15 @@ jobs:
         image: mongo:6.0
         ports:
           - 27017:27017
-        options: >-
-          --health-cmd "echo 'db.runCommand({serverStatus:1}).ok' | mongosh --quiet"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --name mongodb
-        command: ["--replSet", "rs0", "--bind_ip_all"]
+        options: --name mongodb
+        command: mongod --replSet rs0 --bind_ip_all
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
       - run: npm ci
-      - name: Start Replica Set
+      - name: Start Mongo
         run: |
           docker exec mongodb mongosh --eval "rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] })"
           sleep 10
