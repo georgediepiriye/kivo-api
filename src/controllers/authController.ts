@@ -19,7 +19,7 @@ export const signup = catchAsync(
     res.cookie("token", token, {
       httpOnly: true,
       secure: config.env === "production",
-      sameSite: "lax",
+      sameSite: config.env === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -48,7 +48,7 @@ export const login = catchAsync(
     res.cookie("token", token, {
       httpOnly: true,
       secure: config.env === "production",
-      sameSite: "lax",
+      sameSite: config.env === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -109,9 +109,9 @@ export const getMe = async (req: Request, res: Response) => {
 export const logout = async (req: Request, res: Response) => {
   res.cookie("token", "", {
     httpOnly: true,
-    expires: new Date(0), // Sets expiration to 1970 (immediately expired)
     secure: config.env === "production",
-    sameSite: "strict",
+    sameSite: config.env === "production" ? "none" : "lax",
+    expires: new Date(0),
   });
 
   return res.status(200).json({ message: "Logged out successfully" });
