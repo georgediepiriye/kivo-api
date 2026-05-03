@@ -67,7 +67,6 @@ ticketSchema.pre("validate", async function (this: ITicket) {
 });
 
 // Enhanced Indexes for the  Scanner
-ticketSchema.index({ checkInCode: 1 });
 ticketSchema.index({ event: 1, checkInCode: 1 });
 ticketSchema.index({ event: 1, status: 1 });
 ticketSchema.index({ owner: 1 });
