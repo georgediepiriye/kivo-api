@@ -22,11 +22,9 @@ export const handlePaystackWebhook = async (req: Request, res: Response) => {
     if (event.event === "charge.success") {
       const { reference, metadata } = event.data;
       console.log("Webhook received for reference:", reference);
-      // Pass the data to our service to finalize the ticket
       await ticketService.fulfillOrder(reference, metadata);
     }
 
-    // 3. Always send 200 OK to Paystack immediately so they stop retrying
     res.status(httpStatus.OK).send("Webhook Received");
   } catch (error) {
     console.error("Webhook Error:", error);

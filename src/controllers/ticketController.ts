@@ -42,36 +42,37 @@ export const initializeBooking = async (
   }
 };
 
-export const verifyTicketPayment = async (req: Request, res: Response) => {
-  const { reference } = req.params;
+export const verifyTicketPayment = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { reference } = req.params;
 
-  const order = await Order.findOne({ paymentReference: reference })
-    .populate("event")
-    .populate("user");
+    const result = await ticketService.verifyAndFulfillOrder(
+      reference as string,
+    );
 
-  if (!order) {
-    return res
-      .status(404)
-      .json({ status: "error", message: "Transaction not found" });
-  }
+    if (result.status === "success") {
+      return res.status(httpStatus.OK).json({
+        status: "success",
+        message: "Payment confirmed!",
+        data: {
+          order: result.order,
+          tickets: result.tickets,
+        },
+      });
+    }
 
-  if (order.status === "completed") {
-    // If completed, fetch the tickets created for this order
-    const tickets = await Ticket.find({ order: order._id });
-
-    return res.status(200).json({
-      status: "success",
-      message: "Payment confirmed!",
-      data: {
-        order,
-        tickets,
-      },
+    // Return the pending state
+    res.status(httpStatus.OK).json({
+      status: "pending",
+      message: result.message,
     });
+  } catch (error) {
+    next(error);
   }
-  res.status(200).json({
-    status: "pending",
-    message: "We are finalizing your tickets...",
-  });
 };
 
 /**

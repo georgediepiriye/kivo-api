@@ -29,6 +29,7 @@
     "mongoose": "^9.4.1",
     "morgan": "^1.10.1",
     "nanoid": "^5.1.9",
+    "node-cron": "^4.2.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "prompt-sync": "^4.2.0",

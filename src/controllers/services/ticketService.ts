@@ -26,6 +26,10 @@ const getExistingPendingOrder = async (
   });
 };
 
+/**
+ * Locks inventory by incrementing the sold count only if capacity allows.
+ * Uses atomic operations to prevent overselling in high-concurrency scenarios.
+ */
 export const lockInventory = async (
   eventId: string,
   tierName: string,
@@ -36,11 +40,19 @@ export const lockInventory = async (
     `Inventory Lock Attempt: Event=${eventId} Tier=${tierName} Qty=${quantity}`,
   );
 
+  // ATOMIC UPDATE: We include the capacity check inside the filter.
+  // This ensures the update ONLY happens if (current sold + quantity) <= capacity.
   const updatedEvent = await Event.findOneAndUpdate(
     {
       _id: eventId,
-      "ticketTiers.name": tierName,
-      "ticketTiers.capacity": { $gte: quantity },
+      ticketTiers: {
+        $elemMatch: {
+          name: tierName,
+          $expr: {
+            $lte: [{ $add: ["$sold", quantity] }, "$capacity"],
+          },
+        },
+      },
     },
     {
       $inc: {
@@ -49,6 +61,7 @@ export const lockInventory = async (
       },
     },
     {
+      // Use arrayFilters to target the specific tier found by name
       arrayFilters: [{ "tier.name": tierName }],
       new: true,
       runValidators: true,
@@ -57,15 +70,22 @@ export const lockInventory = async (
   );
 
   if (!updatedEvent) {
-    logger.error(
-      `Inventory Lock Failed: Event ${eventId} or Tier ${tierName} not found`,
+    logger.warn(
+      `Inventory Lock Failed: Event ${eventId} is either non-existent or Tier "${tierName}" is sold out.`,
     );
+
+    const eventExists = await Event.findById(eventId).lean();
+    if (!eventExists) {
+      throw new AppError(httpStatus.NOT_FOUND, "Event not found.");
+    }
+
     throw new AppError(
-      httpStatus.NOT_FOUND,
-      `Event not found or Ticket Tier "${tierName}" does not exist or is at capacity.`,
+      httpStatus.BAD_REQUEST,
+      `Sold Out: The "${tierName}" tier does not have enough remaining capacity for ${quantity} ticket(s).`,
     );
   }
 
+  // Find the tier in the updated document to return the price
   const tier = updatedEvent.ticketTiers.find((t: any) => t.name === tierName);
 
   if (!tier) {
@@ -75,16 +95,10 @@ export const lockInventory = async (
     );
   }
 
-  // Capacity Check
-  if (tier.sold > tier.capacity) {
-    logger.warn(
-      `Sold Out Triggered: Event=${eventId} Tier=${tierName} (Sold:${tier.sold} > Cap:${tier.capacity})`,
-    );
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      `Sold Out: ${tierName} has reached maximum capacity.`,
-    );
-  }
+  // Log success for auditing
+  logger.info(
+    `Inventory Locked: Event=${eventId} Tier=${tierName} NewSold=${tier.sold}/${tier.capacity}`,
+  );
 
   return tier.price;
 };
@@ -258,7 +272,7 @@ export const fulfillOrder = async (reference: string, metadata: any) => {
 
     if (order.status === ORDER_STATUS.COMPLETED) {
       logger.warn(`Fulfillment Skip: Ref ${reference} already completed`);
-      await session.commitTransaction(); // Cleanly finish even if nothing to do
+      await session.commitTransaction();
       return;
     }
 
@@ -403,4 +417,87 @@ export const processTicketCheckIn = async (
     eventTitle: ticket.event.title,
     alreadyProcessed: false,
   };
+};
+
+export const verifyAndFulfillOrder = async (reference: string) => {
+  const order = await Order.findOne({ paymentReference: reference });
+
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, "Transaction not found");
+  }
+
+  // 1. If already completed, return early with tickets
+  if (order.status === ORDER_STATUS.COMPLETED) {
+    const tickets = await Ticket.find({ order: order._id });
+    return { status: "success", order, tickets };
+  }
+
+  // 2. If PENDING, check Paystack directly (Safety Net for failed webhooks)
+  const paystackData = await PaystackService.verifyTransaction(reference);
+
+  if (paystackData?.data?.status === "success") {
+    // Webhook might have lagged, so we fulfill it manually here
+    await fulfillOrder(reference, paystackData.data.metadata);
+
+    const tickets = await Ticket.find({ order: order._id });
+    const updatedOrder = await Order.findById(order._id);
+
+    return { status: "success", order: updatedOrder, tickets };
+  }
+
+  // 3. Still not paid
+  return { status: "pending", message: "We are finalizing your tickets..." };
+};
+
+export const releaseExpiredInventory = async () => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // 1. Find orders that are PENDING and past their expiresAt time
+    const expiredOrders = await Order.find({
+      status: ORDER_STATUS.PENDING,
+      expiresAt: { $lt: new Date() },
+    }).session(session);
+
+    if (expiredOrders.length === 0) {
+      await session.commitTransaction();
+      return;
+    }
+
+    for (const order of expiredOrders) {
+      // 2. Reverse the increment in the Event model
+      await Event.updateOne(
+        {
+          _id: order.event,
+          "ticketTiers.name": order.tierName,
+        },
+        {
+          $inc: {
+            "ticketTiers.$[tier].sold": -order.quantity,
+            attendees: -order.quantity,
+          },
+        },
+        {
+          arrayFilters: [{ "tier.name": order.tierName }],
+          session,
+        },
+      );
+
+      // 3. Mark the order as CANCELLED or EXPIRED so it's not processed again
+      order.status = "expired"; // Add this to your ORDER_STATUS constants
+      await order.save({ session });
+
+      logger.info(
+        `Inventory Released: Ref ${order.paymentReference} for Event ${order.event}`,
+      );
+    }
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    logger.error("Failed to release expired inventory:", error);
+  } finally {
+    await session.endSession();
+  }
 };

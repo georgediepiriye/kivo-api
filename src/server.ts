@@ -2,6 +2,7 @@ import app from "./app.js";
 import { connectDB } from "./config/db.js";
 import config from "./config/config.js";
 import { Server } from "http";
+import { initInventoryCron } from "./utils/cronJobs.js";
 
 let server: Server;
 
@@ -15,6 +16,8 @@ const bootstrap = async () => {
     // 1. Wait for Database
     await connectDB();
 
+    // Start the background worker
+    initInventoryCron();
     // 2. Start Server only if DB is successful
     server = app.listen(config.port, () => {
       console.log(

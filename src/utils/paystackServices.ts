@@ -33,6 +33,10 @@ export class PaystackService {
     return this.makeRequest<any>("POST", "/transaction/initialize", payload);
   }
 
+  static async verifyTransaction(reference: string) {
+    return this.makeRequest<any>("GET", `/transaction/verify/${reference}`);
+  }
+
   static async createSubaccount(payload: {
     business_name: string;
     settlement_bank: string;

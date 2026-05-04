@@ -38,10 +38,12 @@ const orderSchema = new Schema<IOrder>(
     },
     paymentReference: { type: String, unique: true, required: true },
     paymentUrl: { type: String },
-    expiresAt: { type: Date, index: { expires: 0 } },
+    expiresAt: { type: Date },
   },
   { timestamps: true },
 );
+
+orderSchema.index({ status: 1, expiresAt: 1 });
 
 export const Order =
   mongoose.models.Order || mongoose.model<IOrder>("Order", orderSchema);
