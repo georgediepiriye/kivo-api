@@ -6,6 +6,9 @@ import AppError from "../utils/AppError.js";
 export const validate =
   (schema: z.ZodObject<any>) =>
   async (req: Request, res: Response, next: NextFunction) => {
+    if (req.body && typeof req.body.eventData === "string") {
+      req.body = JSON.parse(req.body.eventData);
+    }
     try {
       await schema.parseAsync({
         body: req.body,
@@ -23,13 +26,28 @@ export const validate =
             const readableField =
               String(field).charAt(0).toUpperCase() + String(field).slice(1);
 
-            // Clean common technical messages
             let customMessage = issue.message;
-            if (customMessage === "Required") customMessage = "is required";
-            if (customMessage.includes("expected string"))
-              customMessage = "is required";
+            if (
+              customMessage === "Required" ||
+              customMessage.includes("expected string")
+            ) {
+              return `${readableField} is required`;
+            }
 
-            return `${readableField} ${customMessage}`;
+            const fullSentenceTriggers = [
+              "Please",
+              "Must",
+              "Title",
+              "Description",
+              "Invalid",
+            ];
+            const isFullSentence = fullSentenceTriggers.some((word) =>
+              customMessage.startsWith(word),
+            );
+
+            return isFullSentence
+              ? customMessage
+              : `${readableField} ${customMessage}`;
           })
           .join(". ");
 

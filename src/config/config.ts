@@ -50,6 +50,9 @@ const envVarsSchema = z
       .describe("Resend API key for transactional emails"),
     GOOGLE_CLIENT_ID: z.string().describe("Google OAuth Client ID"),
     GOOGLE_CLIENT_SECRET: z.string().describe("Google OAuth Client Secret"),
+    CLOUDINARY_CLOUD_NAME: z.string().describe("Cloudinary cloud name"),
+    CLOUDINARY_API_KEY: z.string().describe("Cloudinary API key"),
+    CLOUDINARY_API_SECRET: z.string().describe("Cloudinary API secret"),
 
     // Logic/Taxation
     KIVO_TAX_PERCENTAGE: z
@@ -131,6 +134,11 @@ const config = {
   googleOAuth: {
     clientId: envVars.GOOGLE_CLIENT_ID,
     clientSecret: envVars.GOOGLE_CLIENT_SECRET,
+  },
+  cloudinary: {
+    cloudName: envVars.CLOUDINARY_CLOUD_NAME,
+    apiKey: envVars.CLOUDINARY_API_KEY,
+    apiSecret: envVars.CLOUDINARY_API_SECRET,
   },
 } as const;
 

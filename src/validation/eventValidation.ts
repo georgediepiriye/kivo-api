@@ -99,6 +99,17 @@ const eventBodyShape = z.object({
 export const createEventSchema = z.object({
   body: eventBodyShape
     .refine(
+      (data) => {
+        const start = new Date(data.startDate).getTime();
+        const end = new Date(data.endDate).getTime();
+        return end > start;
+      },
+      {
+        message: "End date must be after the start date",
+        path: ["endDate"],
+      },
+    )
+    .refine(
       (data) => (data.eventFormat !== "online" ? !!data.location : true),
       {
         message: "Location is required for physical and hybrid events",

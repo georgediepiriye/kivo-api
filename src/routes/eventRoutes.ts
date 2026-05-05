@@ -9,6 +9,8 @@ import {
   removeCoOrganizerSchema,
   updateEventSchema,
 } from "../validation/eventValidation.js";
+import multer from "multer";
+const upload = multer({ storage: multer.memoryStorage() });
 
 const router = Router();
 
@@ -21,7 +23,12 @@ router.get("/:id", eventController.getEvent);
 // Everything below this line now requires a valid login cookie
 router.use(protect);
 
-router.post("/", validate(createEventSchema), eventController.createEvent);
+router.post(
+  "/",
+  upload.single("image"),
+  validate(createEventSchema),
+  eventController.createEvent,
+);
 router.patch("/:id", validate(updateEventSchema), eventController.updateEvent);
 router.get(
   "/:id/manage",

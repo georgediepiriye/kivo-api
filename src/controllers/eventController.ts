@@ -3,6 +3,14 @@ import * as eventService from "./services/eventService.js";
 import httpStatus from "http-status";
 import { IUser } from "../models/User.js";
 import logger from "../utils/logger.js";
+import config from "../config/config.js";
+import { v2 as cloudinary } from "cloudinary";
+
+cloudinary.config({
+  cloud_name: config.cloudinary.cloudName,
+  api_key: config.cloudinary.apiKey,
+  api_secret: config.cloudinary.apiSecret,
+});
 
 export const createEvent = async (
   req: Request,
@@ -10,19 +18,54 @@ export const createEvent = async (
   next: NextFunction,
 ) => {
   try {
-    const eventData = { ...req.body };
+    // Parse the data sent via FormData
+    let eventData =
+      typeof req.body.eventData === "string"
+        ? JSON.parse(req.body.eventData)
+        : { ...req.body };
 
-    // CRITICAL: Prevent GeoSpatial Index errors for Online events
-    // If it's online, we must ensure the location object doesn't exist
-    // so Mongoose doesn't try to fill in defaults like { type: "Point" }
-    if (eventData.eventFormat === "online") {
-      delete eventData.location;
-      eventData.isOnline = true; // Sync boolean helper
+    let imageUrl = "https://picsum.photos/seed/kivo/1200/800"; // Fallback
+
+    // 2. Handle Image Upload to Cloudinary
+    if (req.file) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "kivo_events",
+            // Optimized for lower-bandwidth connections in PH
+            transformation: [
+              { width: 1200, crop: "limit" },
+              { quality: "auto", fetch_format: "auto" },
+            ],
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          },
+        );
+        stream.end(req.file!.buffer);
+      });
+
+      imageUrl = (uploadResult as any).secure_url;
     }
 
-    const user = (req as any).user as IUser;
+    // 3. Prepare the final data object
+    eventData.image = imageUrl;
+
+    // Remove client-side helper fields that shouldn't go to the DB
+    delete eventData.imageFile;
+    delete eventData.locationCoords;
+
+    // 4. Handle Online vs Physical logic
+    if (eventData.eventFormat === "online") {
+      delete eventData.location;
+      eventData.isOnline = true;
+    }
+
+    const user = (req as any).user;
     const organizerId = user._id.toString();
 
+    // 5. Save to Database via Service
     const newEvent = await eventService.createNewEvent(eventData, organizerId);
 
     res.status(httpStatus.CREATED).json({
