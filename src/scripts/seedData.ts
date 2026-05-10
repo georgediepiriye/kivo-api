@@ -36,7 +36,6 @@ const PH_NEIGHBORHOODS = [
   "Rumuokoro",
 ];
 
-// Port Harcourt geographical bounds
 const PH_BOUNDS = { latMin: 4.75, latMax: 4.9, lngMin: 6.95, lngMax: 7.1 };
 
 const TIER_TEMPLATES = [
@@ -89,6 +88,11 @@ async function seedDatabase() {
 
     const eventBatch = Array.from({ length: 100 }).map((_, i) => {
       const host = faker.helpers.arrayElement(createdUsers);
+      const eventStatus = faker.helpers.arrayElement([
+        "casual",
+        "verified",
+        "featured",
+      ]);
 
       const formatRoll = Math.random();
       let eventFormat: "physical" | "hybrid" | "online";
@@ -118,14 +122,29 @@ async function seedDatabase() {
         );
       }
 
+      // --- NEW TRENDING LOGIC ---
+      // Featured events should look more popular
+      const isFeatured = eventStatus === "featured";
+      const attendees = faker.number.int({
+        min: isFeatured ? 50 : 5,
+        max: isFeatured ? 500 : 150,
+      });
+      const views = faker.number.int({
+        min: attendees * 2,
+        max: attendees * 10,
+      });
+      const likes = faker.number.int({
+        min: Math.floor(attendees / 4),
+        max: attendees,
+      });
+
       const eventData: Record<string, any> = {
         title: `${faker.commerce.productAdjective()} ${faker.helpers.arrayElement(["Summit", "Party", "Festival", "Workshop", "Hangout"])}`,
         description: faker.commerce.productDescription(),
         category: faker.helpers.arrayElement(categoryKeys),
         type: faker.helpers.arrayElement(typeKeys),
-        status: faker.helpers.arrayElement(["casual", "verified", "featured"]),
+        status: eventStatus,
         approvalStatus: Math.random() > 0.3 ? "approved" : "pending",
-        medium: eventFormat,
         eventFormat,
         isOnline,
         startDate,
@@ -135,7 +154,12 @@ async function seedDatabase() {
         organizerType: host.role === "organizer" ? "business" : "individual",
         isPublic: true,
         allowAnonymous: faker.datatype.boolean(),
-        attendees: faker.number.int({ min: 15, max: 250 }),
+
+        // Engagement Data
+        attendees,
+        views,
+        likes,
+
         participantImages: Array.from({ length: 5 }).map(() =>
           faker.image.avatar(),
         ),
@@ -159,7 +183,7 @@ async function seedDatabase() {
       eventData.ticketingType = ticketingType;
 
       if (ticketingType === "internal") {
-        eventData.isFree = Math.random() > 0.2;
+        eventData.isFree = Math.random() > 0.4;
         if (!eventData.isFree) {
           const template = faker.helpers.arrayElement(TIER_TEMPLATES);
           const basePrice = faker.number.int({ min: 2500, max: 10000 });
@@ -167,7 +191,7 @@ async function seedDatabase() {
             name,
             price: basePrice * (idx + 1),
             capacity: 100,
-            sold: faker.number.int({ min: 0, max: 15 }),
+            sold: Math.floor(attendees / template.length), // sync sold tickets with attendees
           }));
         }
       } else if (ticketingType === "external") {
@@ -175,7 +199,7 @@ async function seedDatabase() {
         eventData.externalTicketLink = faker.internet.url();
       }
 
-      // Location Logic - Focused on Port Harcourt
+      // Location Logic - Port Harcourt
       if (hasPhysicalPresence) {
         eventData.location = {
           type: "Point",
@@ -205,9 +229,11 @@ async function seedDatabase() {
 
     console.log("🚀 Kivo Database Fully Seeded!");
     console.log("----------------------------------");
-    console.log(`Admin Login: admin@gmail.com / password123`);
-    console.log(`Events: 100 (Randomized Pending/Approved status)`);
-    console.log(`Location: Centered in Port Harcourt, Rivers State`);
+    console.log(`Events: 100 (Randomized Views, Likes & Attendees)`);
+    console.log(
+      `Engagement: Featured events have boosted metrics for trending logic`,
+    );
+    console.log(`Location: Port Harcourt, Rivers State`);
     console.log("----------------------------------");
 
     process.exit(0);

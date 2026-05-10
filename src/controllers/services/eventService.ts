@@ -236,6 +236,13 @@ export const getAllEvents = async (query: any) => {
   ];
   excludedFields.forEach((el) => delete queryObj[el]);
 
+  if (queryObj.category && typeof queryObj.category === "string") {
+    if (queryObj.category.includes(",")) {
+      const categories = queryObj.category.split(",");
+      queryObj.category = { $in: categories };
+    }
+  }
+
   // 2. Force filter for approved and active events
   let filter: any = {
     ...queryObj,

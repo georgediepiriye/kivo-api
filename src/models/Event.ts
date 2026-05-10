@@ -66,6 +66,8 @@ export interface IEvent extends Document {
   externalTicketLink?: string;
 
   attendees: number;
+  views: number;
+  likes: number; // Add this
   participantImages: string[];
   ageRestriction?: string;
   refundPolicy: "none" | "flexible" | "24h";
@@ -180,6 +182,8 @@ const eventSchema = new Schema<IEvent>(
     communityLink: { type: String, trim: true },
     externalTicketLink: { type: String, trim: true },
     attendees: { type: Number, default: 0 },
+    views: { type: Number, default: 0, index: true },
+    likes: { type: Number, default: 0, index: true },
     participantImages: [{ type: String }],
     organizer: { type: Schema.Types.ObjectId, ref: "User", required: true },
     coOrganizers: [{ type: Schema.Types.ObjectId, ref: "User" }],
@@ -226,6 +230,12 @@ eventSchema.pre<IEvent>("save", async function (this: IEvent) {
     this.isFree = false;
   } else {
     this.isFree = true;
+  }
+
+  if (this.isNew) {
+    this.views = 0;
+    this.likes = 0;
+    this.attendees = 0;
   }
 });
 
