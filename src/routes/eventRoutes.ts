@@ -8,6 +8,9 @@ import {
   addCoOrganizerSchema,
   removeCoOrganizerSchema,
   updateEventSchema,
+  createDiscountValidation,
+  deleteDiscountValidation,
+  validateDiscountValidation,
 } from "../validation/eventValidation.js";
 import multer from "multer";
 const upload = multer({ storage: multer.memoryStorage() });
@@ -19,6 +22,11 @@ router.get("/", eventController.getAllEvents);
 router.get("/nearby", eventController.getNearbyEvents);
 router.get("/:id", eventController.getEvent);
 router.get("/slug/:slug", eventController.getEventBySlug);
+router.post(
+  "/:id/discounts/validate",
+  validate(validateDiscountValidation),
+  eventController.validateDiscountCode,
+);
 
 // --- PROTECTED ROUTES GATE ---
 // Everything below this line now requires a valid login cookie
@@ -49,6 +57,19 @@ router.delete(
 );
 
 router.get("/slug/:slug", eventController.getEventBySlug);
+
+// --- DISCOUNT ROUTES ---
+router.patch(
+  "/:id/discounts",
+  validate(createDiscountValidation),
+  eventController.createDiscountCode,
+);
+
+router.delete(
+  "/:id/discounts/:discountId",
+  validate(deleteDiscountValidation),
+  eventController.deleteDiscountCode,
+);
 
 // router.patch("/:id", eventController.updateEvent);
 // router.delete("/:id", eventController.deleteEvent);

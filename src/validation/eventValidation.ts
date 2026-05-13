@@ -200,6 +200,56 @@ export const removeCoOrganizerSchema = z.object({
   }),
 });
 
+export const createDiscountValidation = z.object({
+  params: z.object({
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid Event ID format"),
+  }),
+  body: z.object({
+    code: z
+      .string()
+      .min(3, "Code must be at least 3 characters")
+      .max(15, "Code too long")
+      .regex(/^[A-Z0-9]+$/, "Codes must be uppercase alphanumeric")
+      .trim(),
+    discountPercentage: z.number().min(1).max(100),
+    maxUses: z.number().int().positive().optional(),
+    applicableTickets: z.array(z.string()).optional(),
+    expiryDate: z
+      .string()
+      .optional()
+      .refine((val) => !val || !isNaN(Date.parse(val)), {
+        message: "Invalid expiry date format",
+      }),
+  }),
+});
+
+export const deleteDiscountValidation = z.object({
+  params: z.object({
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid Event ID format"),
+    discountId: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, "Invalid Discount ID format"),
+  }),
+});
+
+export const validateDiscountValidation = z.object({
+  params: z.object({
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid Event ID format"),
+  }),
+  body: z.object({
+    code: z
+      .string()
+      .min(1, "Discount code is required")
+      .trim()
+      .transform((val) => val.toUpperCase()), // Auto-normalize input
+    tierName: z.string().min(1, "Ticket tier name is required").trim(),
+  }),
+});
+
 export type CreateEventInput = z.infer<typeof createEventSchema>["body"];
 export type EventIdParam = z.infer<typeof eventIdParamSchema>["params"];
 export type AddCoOrganizerInput = z.infer<typeof addCoOrganizerSchema>;
+export type RemoveCoOrganizerInput = z.infer<typeof removeCoOrganizerSchema>;
+export type CreateDiscountInput = z.infer<typeof createDiscountValidation>;
+export type ValidateDiscountInput = z.infer<typeof validateDiscountValidation>;
+export type DeleteDiscountInput = z.infer<typeof deleteDiscountValidation>;

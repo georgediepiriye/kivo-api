@@ -284,3 +284,80 @@ export const getEventBySlug = async (
     next(error);
   }
 };
+
+export const createDiscountCode = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = req.params;
+    const user = (req as any).user;
+
+    const updatedEvent = await eventService.addDiscountToEvent(
+      id as string,
+      req.body,
+      user._id.toString(),
+    );
+
+    res.status(httpStatus.OK).json({
+      status: "success",
+      message: "Discount code active",
+      data: { event: updatedEvent },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const deleteDiscountCode = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id, discountId } = req.params;
+    const user = (req as any).user;
+
+    const updatedEvent = await eventService.removeDiscountCode(
+      id as string,
+      discountId as string,
+      user._id.toString(),
+    );
+
+    res.status(httpStatus.OK).json({
+      status: "success",
+      message: "Discount code deleted successfully",
+      data: { event: updatedEvent },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const validateDiscountCode = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = req.params; // eventId
+    const { code, tierName } = req.body;
+
+    const discount = await eventService.verifyDiscountCode(
+      id as string,
+      code as string,
+      tierName as string,
+    );
+
+    res.status(httpStatus.OK).json({
+      status: "success",
+      message: "Discount applied successfully",
+      discount: {
+        code: discount.code,
+        discountPercentage: discount.discountPercentage,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

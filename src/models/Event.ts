@@ -47,6 +47,7 @@ export interface IEvent extends Document {
   isFree: boolean;
   ticketingType: "none" | "internal" | "external";
   ticketTiers: ITicketTier[];
+  discounts: IDiscount[];
   totalCapacity?: number;
   isBoosted: boolean;
   boostExpiry?: Date;
@@ -85,6 +86,35 @@ const ticketTierSchema = new Schema<ITicketTier>({
   sold: { type: Number, default: 0 },
   description: String,
   salesEnd: { type: Date },
+});
+
+interface IDiscount {
+  _id?: mongoose.Types.ObjectId;
+  code: string;
+  discountPercentage: number;
+  maxUses?: number;
+  usedCount: number;
+  expiryDate?: Date;
+  isActive: boolean;
+  applicableTickets: string[];
+}
+
+const discountSchema = new Schema<IDiscount>({
+  code: {
+    type: String,
+    required: true,
+    uppercase: true,
+    trim: true,
+  },
+  discountPercentage: { type: Number, required: true, min: 1, max: 100 },
+  maxUses: { type: Number },
+  usedCount: { type: Number, default: 0 },
+  expiryDate: { type: Date },
+  isActive: { type: Boolean, default: true },
+  applicableTickets: {
+    type: [String],
+    default: [],
+  },
 });
 
 const eventSchema = new Schema<IEvent>(
@@ -169,6 +199,7 @@ const eventSchema = new Schema<IEvent>(
       default: "none",
     },
     ticketTiers: [ticketTierSchema],
+    discounts: [discountSchema],
     totalCapacity: { type: Number, default: null },
     isBoosted: { type: Boolean, default: false, index: true },
     boostExpiry: { type: Date },
@@ -310,7 +341,6 @@ eventSchema.virtual("startingPrice").get(function (this: IEvent) {
 /**
  * INDEXES
  */
-eventSchema.index({ slug: 1 }, { unique: true });
 eventSchema.index({ location: "2dsphere" }, { sparse: true });
 eventSchema.index({ "location.neighborhood": 1 }, { sparse: true });
 eventSchema.index({ "recurrence.parentId": 1 });

@@ -5,6 +5,7 @@ import { User } from "../../models/User.js";
 import AppError from "../../utils/AppError.js";
 import logger from "../../utils/logger.js";
 import httpStatus from "http-status";
+import { CreateDiscountInput } from "../../validation/eventValidation.js";
 
 export const createNewEvent = async (
   eventData: Partial<IEvent>,
@@ -480,7 +481,8 @@ export const getManagementDashboardData = async (
       .skip(skip)
       .limit(limit)
       .populate("owner", "name image")
-      .lean(), // Use lean for faster read-only queries
+      .populate("checkedInBy", "name image")
+      .lean(),
     Ticket.countDocuments({
       event: eventId,
       status: { $in: ["valid", "used"] },
@@ -592,4 +594,169 @@ export const getEventBySlug = async (slug: string) => {
   });
 
   return event;
+};
+
+/**
+ * Adds a new discount code to an event's growth tools.
+ * Ensures the user is authorized and the code is unique for this move.
+ */
+export const addDiscountToEvent = async (
+  eventId: string,
+  discountData: CreateDiscountInput["body"],
+  userId: string,
+) => {
+  // 1. Fetch the event and check existence
+  const event = await Event.findById(eventId);
+  if (!event) {
+    throw new AppError(httpStatus.NOT_FOUND, "Event not found");
+  }
+
+  // 2. Authorization: Organizer or Co-Organizer only
+  const isOrganizer = event.organizer.toString() === userId;
+  const isCoOrg = event.coOrganizers?.some(
+    (id: { toString: () => string }) => id.toString() === userId,
+  );
+
+  if (!isOrganizer && !isCoOrg) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      "Unauthorized to manage growth tools for this event",
+    );
+  }
+
+  // 3. Uniqueness Check: Prevent duplicate codes on the same event
+  const normalizedCode = discountData.code.toUpperCase().trim();
+  const codeExists = event.discounts?.some(
+    (d: { code: string }) => d.code === normalizedCode,
+  );
+
+  if (codeExists) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `The code "${normalizedCode}" is already active for this move.`,
+    );
+  }
+
+  // 4. Sanitize and Push Data
+  // This ensures maxUses and expiryDate are only saved if provided
+  const newDiscount = {
+    code: normalizedCode,
+    discountPercentage: discountData.discountPercentage,
+    applicableTickets: discountData.applicableTickets || [],
+    ...(discountData.maxUses && { maxUses: Number(discountData.maxUses) }),
+    ...(discountData.expiryDate && {
+      expiryDate: new Date(discountData.expiryDate),
+    }),
+    isActive: true,
+    usedCount: 0,
+  };
+
+  const updatedEvent = await Event.findByIdAndUpdate(
+    eventId,
+    {
+      $push: { discounts: newDiscount },
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+
+  if (!updatedEvent) {
+    throw new AppError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Failed to update event growth tools",
+    );
+  }
+
+  return updatedEvent;
+};
+
+/**
+ * Removes a discount code from the event.
+ */
+export const removeDiscountCode = async (
+  eventId: string,
+  codeId: string,
+  userId: string,
+) => {
+  console.log(
+    `Attempting to remove discount code ${codeId} from event ${eventId} by user ${userId}`,
+  );
+  const event = await Event.findById(eventId);
+  if (!event) throw new AppError(httpStatus.NOT_FOUND, "Event not found");
+
+  const isOrganizer = event.organizer.toString() === userId;
+  if (!isOrganizer) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      "Only main organizers can delete codes",
+    );
+  }
+
+  return await Event.findByIdAndUpdate(
+    eventId,
+    { $pull: { discounts: { _id: codeId } } },
+    { new: true },
+  );
+};
+
+/**
+ * Validates a discount code for a specific event and ticket tier.
+ */
+export const verifyDiscountCode = async (
+  eventId: string,
+  code: string,
+  tierName: string,
+) => {
+  const event = await Event.findById(eventId);
+  if (!event) {
+    throw new AppError(httpStatus.NOT_FOUND, "Event not found");
+  }
+
+  const normalizedCode = code.toUpperCase().trim();
+
+  // Find the discount in the event's discounts array
+  const discount = event.discounts?.find((d: any) => d.code === normalizedCode);
+
+  if (!discount) {
+    throw new AppError(httpStatus.NOT_FOUND, "Invalid discount code");
+  }
+
+  // 1. Check if the code is active
+  if (!discount.isActive) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This code is no longer active");
+  }
+
+  // 2. Check Expiry Date
+  if (discount.expiryDate && new Date(discount.expiryDate) < new Date()) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "This discount code has expired",
+    );
+  }
+
+  // 3. Check Usage Limit (if maxUses is set)
+  if (discount.maxUses && discount.usedCount >= discount.maxUses) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Usage limit reached for this code",
+    );
+  }
+
+  // 4. Check Tier Applicability
+  // If applicableTickets is empty, it applies to everything.
+  // Otherwise, the selected tier must be in the list.
+  if (
+    discount.applicableTickets &&
+    discount.applicableTickets.length > 0 &&
+    !discount.applicableTickets.includes(tierName)
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `This code is not valid for ${tierName} tickets`,
+    );
+  }
+
+  return discount;
 };
