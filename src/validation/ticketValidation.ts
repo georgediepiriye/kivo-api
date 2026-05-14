@@ -8,6 +8,7 @@ export const bookTicketSchema = z.object({
     eventId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid Event ID"),
     tierName: z.string().min(1, "Please select a ticket tier"),
     quantity: z.number().int().positive().default(1),
+    discountCode: z.string().optional(),
   }),
 });
 

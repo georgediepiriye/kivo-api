@@ -5,6 +5,7 @@ import {
   EVENT_TYPES,
   EVENT_CATEGORIES,
 } from "../lib/constants.js";
+import { discountSchema, IDiscount } from "./Discount.js";
 
 interface ITicketTier {
   name: string;
@@ -13,6 +14,7 @@ interface ITicketTier {
   sold: number;
   description?: string;
   salesEnd?: Date;
+  isSoldOut?: boolean;
 }
 
 export interface IEvent extends Document {
@@ -74,6 +76,7 @@ export interface IEvent extends Document {
   ageRestriction?: string;
   refundPolicy: "none" | "flexible" | "24h";
   tags: string[];
+  isSoldOut: boolean;
   isCancelled: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -86,35 +89,7 @@ const ticketTierSchema = new Schema<ITicketTier>({
   sold: { type: Number, default: 0 },
   description: String,
   salesEnd: { type: Date },
-});
-
-interface IDiscount {
-  _id?: mongoose.Types.ObjectId;
-  code: string;
-  discountPercentage: number;
-  maxUses?: number;
-  usedCount: number;
-  expiryDate?: Date;
-  isActive: boolean;
-  applicableTickets: string[];
-}
-
-const discountSchema = new Schema<IDiscount>({
-  code: {
-    type: String,
-    required: true,
-    uppercase: true,
-    trim: true,
-  },
-  discountPercentage: { type: Number, required: true, min: 1, max: 100 },
-  maxUses: { type: Number },
-  usedCount: { type: Number, default: 0 },
-  expiryDate: { type: Date },
-  isActive: { type: Boolean, default: true },
-  applicableTickets: {
-    type: [String],
-    default: [],
-  },
+  isSoldOut: { type: Boolean, default: false },
 });
 
 const eventSchema = new Schema<IEvent>(
@@ -240,6 +215,11 @@ const eventSchema = new Schema<IEvent>(
       default: "none",
     },
     tags: [{ type: String }],
+    isSoldOut: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     isCancelled: { type: Boolean, default: false },
   },
   {

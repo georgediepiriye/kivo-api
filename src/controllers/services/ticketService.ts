@@ -12,20 +12,7 @@ import { Ticket } from "../../models/Ticket.js";
 import logger from "../../utils/logger.js";
 import kivoEvents from "../../utils/eventsEmitter.js";
 import { User } from "../../models/User.js";
-
-const getExistingPendingOrder = async (
-  email: string,
-  eventId: string,
-  tierName: string,
-) => {
-  return await Order.findOne({
-    buyerEmail: email.toLowerCase(),
-    event: eventId,
-    tierName,
-    status: ORDER_STATUS.PENDING,
-    expiresAt: { $gt: new Date() },
-  });
-};
+import { Discount } from "../../models/Discount.js";
 
 /**
  * Locks inventory by incrementing the sold count only if capacity allows.
@@ -41,45 +28,55 @@ export const lockInventory = async (
     `Inventory Lock Attempt: Event=${eventId} Tier=${tierName} Qty=${quantity}`,
   );
 
-  const event = await Event.findById(eventId).session(session);
+  // 1. Find the event and the specific tier index first
+  // We do this to get the exact path for the atomic update
+  const event = await Event.findOne({
+    _id: eventId,
+    "ticketTiers.name": tierName,
+  }).session(session);
 
   if (!event) {
-    logger.warn(`Inventory Lock Failed: Event ${eventId} not found.`);
-    throw new AppError(httpStatus.NOT_FOUND, "Event not found.");
+    throw new AppError(httpStatus.NOT_FOUND, "Event or Ticket Tier not found.");
   }
 
-  const tier = event.ticketTiers.find((t: any) => t.name === tierName);
-
-  if (!tier) {
-    logger.warn(
-      `Inventory Lock Failed: Tier "${tierName}" not found in event.`,
-    );
-    throw new AppError(
-      httpStatus.NOT_FOUND,
-      `Ticket tier "${tierName}" does not exist for this event.`,
-    );
-  }
-
-  const remainingCapacity = tier.capacity - tier.sold;
-  if (remainingCapacity < quantity) {
-    logger.warn(
-      `Inventory Lock Failed: ${tierName} is sold out or lacks capacity.`,
-    );
+  if (event.isSoldOut === true) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      `Sold Out: Only ${remainingCapacity} spots left for the "${tierName}" tier.`,
+      "This move is officially sold out by the organizer.",
     );
   }
 
-  tier.sold += quantity;
-  event.attendees = (event.attendees || 0) + quantity;
+  const tierIndex = event.ticketTiers.findIndex(
+    (t: any) => t.name === tierName,
+  );
+  const tier = event.ticketTiers[tierIndex];
 
-  await event.save({ session });
-
-  logger.info(
-    `Inventory Locked: Event=${eventId} Tier=${tierName} NewSold=${tier.sold}/${tier.capacity}`,
+  // 2. Perform the Atomic Update
+  // We use the index to target the specific tier and check capacity in the query
+  const updatedEvent = await Event.findOneAndUpdate(
+    {
+      _id: eventId,
+      [`ticketTiers.${tierIndex}.name`]: tierName,
+      [`ticketTiers.${tierIndex}.sold`]: { $lte: tier.capacity - quantity },
+    },
+    {
+      $inc: {
+        [`ticketTiers.${tierIndex}.sold`]: quantity,
+        attendees: quantity,
+      },
+    },
+    {
+      session,
+      new: true,
+    },
   );
 
+  if (!updatedEvent) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Sold Out: The requested tickets are no longer available for this tier.",
+    );
+  }
   return tier.price;
 };
 
@@ -122,122 +119,127 @@ export const processBooking = async (
   tierName: string,
   quantity: number = 1,
   buyerDetails: { firstName: string; lastName: string },
+  discountCode?: string,
 ) => {
-  const existingOrder = await getExistingPendingOrder(
-    userEmail,
-    eventId,
-    tierName,
-  );
-
-  if (existingOrder) {
-    logger.info(
-      `Booking Idempotency: Resuming pending order ${existingOrder.paymentReference} for ${userEmail}`,
-    );
-    return {
-      authorization_url: existingOrder.paymentUrl,
-      reference: existingOrder.paymentReference,
-    };
-  }
-
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
+    // 1. Inventory & Price Sync
     const unitPrice = await lockInventory(eventId, tierName, quantity, session);
-    const totalAmount = unitPrice * quantity;
+    const event = await Event.findById(eventId).session(session);
+    if (!event)
+      throw new AppError(httpStatus.NOT_FOUND, "Event data sync error");
 
-    // --- CASE 1: FREE TICKET FLOW ---
+    let totalAmount = unitPrice * quantity;
+    let appliedDiscountId = null;
+
+    // 2. Handle Discounts
+    if (discountCode) {
+      const result = await applyEventDiscount(
+        event,
+        discountCode,
+        tierName,
+        totalAmount,
+        session,
+      );
+      totalAmount = result.newTotal;
+      appliedDiscountId = result.discountId;
+    }
+
+    totalAmount = Math.round(totalAmount);
+
+    // 3. Idempotency (Check for matching pending orders)
+    const existingOrder = await Order.findOne({
+      buyerEmail: userEmail.toLowerCase(),
+      event: eventId,
+      tierName,
+      totalAmount,
+      status: ORDER_STATUS.PENDING,
+      expiresAt: { $gt: new Date() },
+    }).session(session);
+
+    if (existingOrder && !discountCode) {
+      await session.abortTransaction();
+      return {
+        authorization_url: existingOrder.paymentUrl,
+        reference: existingOrder.paymentReference,
+      };
+    }
+
+    // 4. Update Event Socials/Hype
+    if (userId) await updateEventParticipantHype(eventId, userId, session);
+
+    // 5. Create Order Payload
+    const orderData = {
+      user: userId || undefined,
+      buyerEmail: userEmail.toLowerCase(),
+      event: new mongoose.Types.ObjectId(eventId),
+      tierName,
+      quantity,
+      totalAmount,
+      discount: appliedDiscountId,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    };
+
+    // 6. Execution: Free vs Paid
     if (totalAmount === 0) {
-      const freeReference = `FREE-${nanoid(10).toUpperCase()}`;
-
       const [order] = await Order.create(
         [
           {
-            user: userId || undefined,
-            buyerEmail: userEmail.toLowerCase(),
-            event: new mongoose.Types.ObjectId(eventId),
-            tierName,
-            quantity,
-            totalAmount: 0,
-            paymentReference: freeReference,
+            ...orderData,
+            paymentReference: `KIVO-${nanoid(10).toUpperCase()}`,
             status: ORDER_STATUS.COMPLETED,
-            expiresAt: new Date(Date.now() + 15 * 60 * 1000),
           },
         ],
         { session },
       );
 
-      if (userId) {
-        const user = await User.findById(userId).session(session);
-        if (user?.image) {
-          await Event.updateOne(
-            {
-              _id: eventId,
-              participantImages: { $ne: user.image },
-              $expr: { $lt: [{ $size: "$participantImages" }, 5] },
-            },
-            { $push: { participantImages: user.image } },
-            { session },
-          );
-        }
-      }
       const { tickets, eventImage } = await createTicketsForOrder(
         order,
         buyerDetails,
         session,
       );
-
       await session.commitTransaction();
 
-      kivoEvents.emit("order.fulfilled", {
-        order,
-        tickets,
-        eventImage,
-      });
-
-      logger.info(`Free Booking Completed: Ref=${freeReference}`);
-
-      return {
-        isFree: true,
-        reference: freeReference,
-      };
+      kivoEvents.emit("order.fulfilled", { order, tickets, eventImage });
+      return { isFree: true, reference: order.paymentReference };
     }
 
-    // --- CASE 2: PAID TICKET FLOW (Paystack) ---
+    // Paid Flow
     const payment = await PaystackService.initializeTransaction({
       email: userEmail,
       amount: totalAmount * 100,
       callback_url: `${config.clientUrl}/verify-payment`,
-      metadata: { userId, eventId, tierName, quantity, ...buyerDetails },
+      metadata: {
+        userId,
+        eventId,
+        tierName,
+        quantity,
+        discountCode,
+        ...buyerDetails,
+      },
     });
 
-    const [order] = await Order.create(
+    await Order.create(
       [
         {
-          user: userId || undefined,
-          buyerEmail: userEmail.toLowerCase(),
-          event: new mongoose.Types.ObjectId(eventId),
-          tierName,
-          quantity,
-          totalAmount: totalAmount,
+          ...orderData,
           paymentReference: payment.data.reference,
           paymentUrl: payment.data.authorization_url,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000),
         },
       ],
       { session },
     );
 
     await session.commitTransaction();
-    logger.info(`Paid Booking Initialized: Ref=${order.paymentReference}`);
-
     return {
       isFree: false,
-      authorization_url: order.paymentUrl,
-      reference: order.paymentReference,
+      authorization_url: payment.data.authorization_url,
+      reference: payment.data.reference,
     };
   } catch (error: any) {
-    await session.abortTransaction();
+    if (session.inTransaction()) await session.abortTransaction();
     logger.error(`Booking Aborted: ${error.message} - User: ${userEmail}`);
     throw error;
   } finally {
@@ -312,6 +314,74 @@ export const fulfillOrder = async (reference: string, metadata: any) => {
     throw error;
   } finally {
     await session.endSession();
+  }
+};
+
+/**
+ * Validates and applies discount from the event's embedded array
+ */
+const applyEventDiscount = async (
+  event: any,
+  code: string,
+  tierName: string,
+  currentTotal: number,
+  session: mongoose.ClientSession,
+) => {
+  const normalizedCode = code.toUpperCase().trim();
+  const discount = event.discounts?.find(
+    (d: any) => d.code === normalizedCode && d.isActive === true,
+  );
+
+  if (!discount) throw new Error("Invalid or deactivated discount code");
+
+  const isApplicable =
+    discount.applicableTickets.includes("all") ||
+    discount.applicableTickets.some(
+      (t: string) => t.toLowerCase() === tierName.toLowerCase(),
+    );
+  const isNotExpired =
+    !discount.expiryDate || new Date() < new Date(discount.expiryDate);
+  const hasUsageLeft =
+    !discount.usageLimit || discount.usedCount < discount.usageLimit;
+
+  if (!isApplicable) throw new Error(`Code not valid for the ${tierName} tier`);
+  if (!isNotExpired) throw new Error("This discount code has expired");
+  if (!hasUsageLeft) throw new Error("Discount usage limit reached");
+
+  const reduction = (discount.discountPercentage / 100) * currentTotal;
+
+  // Increment usage count atomically
+  await Event.updateOne(
+    { _id: event._id, "discounts.code": normalizedCode },
+    { $inc: { "discounts.$.usedCount": 1 } },
+    { session },
+  );
+
+  return {
+    newTotal: Math.max(0, currentTotal - reduction),
+    discountId: discount._id,
+  };
+};
+
+/**
+ * Handles adding user avatar to event hypelist
+ */
+const updateEventParticipantHype = async (
+  eventId: string,
+  userId: string,
+  session: mongoose.ClientSession,
+) => {
+  const user = await User.findById(userId).session(session);
+  if (user?.image) {
+    await Event.updateOne(
+      {
+        _id: eventId,
+        participantImages: { $ne: user.image },
+        $expr: { $lt: [{ $size: "$participantImages" }, 5] },
+      },
+      { $push: { participantImages: user.image } },
+      { session },
+    );
   }
 };
 

@@ -20,8 +20,15 @@ export const initializeBooking = async (
   next: NextFunction,
 ) => {
   try {
-    const { eventId, tierName, quantity, email, firstName, lastName } =
-      req.body;
+    const {
+      eventId,
+      tierName,
+      quantity,
+      email,
+      firstName,
+      lastName,
+      discountCode,
+    } = req.body;
     const userId = (req.user as any)?.id?.toString() || null;
 
     const result = await ticketService.processBooking(
@@ -31,6 +38,7 @@ export const initializeBooking = async (
       tierName,
       quantity,
       { firstName, lastName },
+      discountCode,
     );
 
     res.status(httpStatus.OK).json({

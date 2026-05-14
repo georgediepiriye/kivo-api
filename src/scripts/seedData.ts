@@ -78,23 +78,23 @@ async function seedDatabase() {
     const typeKeys = Object.keys(EVENT_TYPES);
 
     console.log(
-      "🎲 Generating 100 high-quality events with Additive Priority...",
+      "🎲 Generating 100 high-quality events with Sold Out variations...",
     );
 
     const eventBatch = Array.from({ length: 100 }).map((_, i) => {
       const host = faker.helpers.arrayElement(createdUsers);
 
-      // --- ADDITIVE STATUS & PRIORITY LOGIC ---
-      const isVerified = Math.random() > 0.7; // 30% Verified
-      const isFeatured = Math.random() > 0.85; // 15% Featured
-      const isBoosted = Math.random() > 0.9; // 10% Boosted
+      const isVerified = Math.random() > 0.7;
+      const isFeatured = Math.random() > 0.85;
+      const isBoosted = Math.random() > 0.9;
+
+      // NEW: Manual Sold Out Toggle logic (15% chance)
+      const isSoldOut = Math.random() > 0.85;
 
       const status = ["casual"];
       if (isVerified) status.push("verified");
       if (isFeatured) status.push("featured");
 
-      // Calculate Priority Level
-      // 1 (Verified) + 2 (Featured) + 4 (Boosted)
       let priorityLevel = 0;
       if (isVerified) priorityLevel += 1;
       if (isFeatured) priorityLevel += 2;
@@ -142,9 +142,10 @@ async function seedDatabase() {
         description: faker.commerce.productDescription(),
         category: faker.helpers.arrayElement(categoryKeys),
         type: faker.helpers.arrayElement(typeKeys),
-        status, // Now an array
-        priorityLevel, // Summed score
+        status,
+        priorityLevel,
         isBoosted,
+        isSoldOut, // MANUALLY TOGGLED
         boostExpiry: isBoosted ? faker.date.soon({ days: 7 }) : undefined,
         approvalStatus: "approved",
         eventFormat,
@@ -193,10 +194,13 @@ async function seedDatabase() {
 
         eventData.ticketTiers = template.map((name, idx) => {
           const capacity = faker.number.int({ min: 50, max: 200 });
-          const sold =
-            Math.random() > 0.9
-              ? Math.floor(capacity * 0.9)
-              : Math.floor(attendees / template.length);
+
+          // Logic for "Naturally" sold out tiers (10% chance)
+          const isNaturallyFull = Math.random() > 0.9;
+          const sold = isNaturallyFull
+            ? capacity
+            : Math.floor(attendees / template.length);
+
           return {
             name,
             price: basePrice * (idx + 1),
@@ -229,16 +233,14 @@ async function seedDatabase() {
       }
 
       if (isOnline) eventData.meetingLink = faker.internet.url();
-
       return eventData;
     });
 
     await Event.insertMany(eventBatch);
 
-    console.log("🚀 Kivo Database Fully Seeded!");
+    console.log("🚀 Kivo Database Fully Seeded with Sold Out Moves!");
     console.log("----------------------------------");
-    console.log(`Location: Port Harcourt, Rivers State`);
-    console.log(`Priority Scaling: Additive (0-7 scale)`);
+    console.log(`Port Harcourt Status: 15% Manual Sold Out / 10% Capacity Hit`);
     console.log("----------------------------------");
 
     process.exit(0);

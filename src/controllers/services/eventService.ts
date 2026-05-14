@@ -638,15 +638,16 @@ export const addDiscountToEvent = async (
   }
 
   // 4. Sanitize and Push Data
-  // This ensures maxUses and expiryDate are only saved if provided
   const newDiscount = {
     code: normalizedCode,
     discountPercentage: discountData.discountPercentage,
     applicableTickets: discountData.applicableTickets || [],
-    ...(discountData.maxUses && { maxUses: Number(discountData.maxUses) }),
-    ...(discountData.expiryDate && {
-      expiryDate: new Date(discountData.expiryDate),
-    }),
+    usageLimit: discountData.usageLimit
+      ? Number(discountData.usageLimit)
+      : null,
+    expiryDate: discountData.expiryDate
+      ? new Date(discountData.expiryDate)
+      : null,
     isActive: true,
     usedCount: 0,
   };
@@ -759,4 +760,51 @@ export const verifyDiscountCode = async (
   }
 
   return discount;
+};
+
+/**
+ * Toggles the isSoldOut status of an event.
+ * Checks for organizer or authorized co-organizer permissions.
+ */
+export const toggleEventSoldOut = async (
+  eventId: string,
+  userId: string,
+  tierId?: string,
+) => {
+  // 1. Fetch the document
+  const event = await Event.findById(eventId);
+  if (!event) {
+    throw new AppError(httpStatus.NOT_FOUND, "Event not found");
+  }
+
+  // 2. Authorization check
+  const isOrganizer = event.organizer.toString() === userId;
+  const isCoOrg = event.coOrganizers?.some(
+    (id: any) => id.toString() === userId,
+  );
+
+  if (!isOrganizer && !isCoOrg) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      "You don't have permission to modify the sales status",
+    );
+  }
+
+  // 3. Perform the toggle
+  if (tierId) {
+    // Basic way: find the tier in the array and toggle the boolean
+    const tier = event.ticketTiers.id(tierId);
+    if (!tier) {
+      throw new AppError(httpStatus.NOT_FOUND, "Ticket tier not found");
+    }
+    tier.isSoldOut = !tier.isSoldOut;
+  } else {
+    // Global toggle
+    event.isSoldOut = !event.isSoldOut;
+  }
+
+  // 4. Save the document - Mongoose handles the internal versioning
+  await event.save();
+
+  return event;
 };

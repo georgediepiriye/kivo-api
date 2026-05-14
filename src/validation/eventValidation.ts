@@ -207,18 +207,18 @@ export const createDiscountValidation = z.object({
   body: z.object({
     code: z
       .string()
-      .min(3, "Code must be at least 3 characters")
-      .max(15, "Code too long")
-      .regex(/^[A-Z0-9]+$/, "Codes must be uppercase alphanumeric")
+      .min(3)
+      .max(15)
+      .regex(/^[A-Z0-9]+$/)
       .trim(),
     discountPercentage: z.number().min(1).max(100),
-    maxUses: z.number().int().positive().optional(),
+    usageLimit: z.number().int().positive().min(1).nullable().optional(),
     applicableTickets: z.array(z.string()).optional(),
     expiryDate: z
       .string()
       .optional()
       .refine((val) => !val || !isNaN(Date.parse(val)), {
-        message: "Invalid expiry date format",
+        message: "Invalid expiry date/time format",
       }),
   }),
 });

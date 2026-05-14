@@ -71,6 +71,8 @@ router.delete(
   eventController.deleteDiscountCode,
 );
 
+router.patch("/:id/toggle-sold-out", eventController.toggleSoldOutStatus);
+
 // router.patch("/:id", eventController.updateEvent);
 // router.delete("/:id", eventController.deleteEvent);
 

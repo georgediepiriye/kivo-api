@@ -182,10 +182,11 @@ export const HOTSPOT_STATUS = {
  * Tracking the lifecycle of a purchase from issuance to entry.
  */
 export const TICKET_STATUS = {
-  valid: "valid",
-  used: "used",
-  refunded: "refunded",
-  cancelled: "cancelled",
+  valid: "valid", // Ticket is active and ready for use
+  used: "used", // Ticket has been scanned (Checked-in)
+  refunded: "refunded", // Money returned to buyer, ticket invalidated
+  cancelled: "cancelled", // Ticket voided by admin (e.g., chargeback/fraud)
+  transferred: "transferred", //  Ticket forwarded to another user
 } as const;
 
 export type KivoType = keyof typeof EVENT_TYPES;

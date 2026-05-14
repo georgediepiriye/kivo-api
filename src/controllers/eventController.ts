@@ -361,3 +361,33 @@ export const validateDiscountCode = async (
     next(error);
   }
 };
+
+export const toggleSoldOutStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = req.params;
+    const { tierId } = req.body;
+    const user = (req as any).user;
+
+    const updatedEvent: any = await eventService.toggleEventSoldOut(
+      id as string,
+      user._id.toString(),
+      tierId as string | undefined,
+    );
+
+    const isNowSoldOut = tierId
+      ? updatedEvent.ticketTiers.id(tierId).isSoldOut
+      : updatedEvent.isSoldOut;
+
+    res.status(httpStatus.OK).json({
+      status: "success",
+      message: isNowSoldOut ? "Marked as Sold Out" : "Sales resumed",
+      data: updatedEvent,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

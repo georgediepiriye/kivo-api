@@ -15,7 +15,9 @@ export interface ITicket extends Document {
   };
   ticketCode: string;
   checkInCode: string;
+  originalTicket?: mongoose.Types.ObjectId;
   status: TicketStatus;
+  isSoldOut: boolean;
   checkedInAt?: Date;
   checkedInBy?: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -47,7 +49,13 @@ const ticketSchema = new Schema<ITicket>(
       enum: Object.values(TICKET_STATUS),
       default: "valid",
     },
+    isSoldOut: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     checkedInAt: { type: Date },
+    originalTicket: { type: Schema.Types.ObjectId, ref: "Ticket" },
     checkedInBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   {
@@ -72,6 +80,12 @@ ticketSchema.index({ event: 1, status: 1 });
 ticketSchema.index({ owner: 1 });
 ticketSchema.index({ "buyerInfo.email": 1 });
 ticketSchema.index({ event: 1, updatedAt: 1 });
+ticketSchema.index({
+  event: 1,
+  "buyerInfo.lastName": 1,
+  "buyerInfo.firstName": 1,
+});
+ticketSchema.index({ originalTicket: 1 });
 
 export const Ticket =
   mongoose.models.Ticket || mongoose.model<ITicket>("Ticket", ticketSchema);
