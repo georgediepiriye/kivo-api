@@ -5,11 +5,11 @@ import type { StringValue } from "ms"; // Import the specific type
 /**
  * Signs a JWT token with the configured expiration.
  */
-export const signToken = (id: string): string => {
+export const signToken = (id: string, role: string): string => {
   const signOptions: SignOptions = {
     // We cast as StringValue to satisfy the jsonwebtoken type definition
     expiresIn: `${config.jwt.refreshExpirationDays}d` as StringValue,
   };
 
-  return jwt.sign({ id }, config.jwt.secret, signOptions);
+  return jwt.sign({ id, role }, config.jwt.secret, signOptions);
 };

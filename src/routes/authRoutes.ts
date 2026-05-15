@@ -34,9 +34,13 @@ router.get(
     // User is authenticated by Google, now we issue our own Kivo JWT
     const user = req.user as any;
 
-    const token = jwt.sign({ id: user._id }, config.jwt.secret!, {
-      expiresIn: "7d",
-    });
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      config.jwt.secret!,
+      {
+        expiresIn: "7d",
+      },
+    );
 
     // Set HTTP-Only Cookie
     res.cookie("token", token, {

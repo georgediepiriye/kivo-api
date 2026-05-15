@@ -9,7 +9,7 @@ import jwt from "jsonwebtoken";
 export const signup = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const newUser = await authService.createUser(req.body);
-    const token = signToken(newUser._id.toString());
+    const token = signToken(newUser._id.toString(), newUser.role);
 
     // Sanitize response
     const user = newUser.toObject();
@@ -42,7 +42,7 @@ export const login = catchAsync(
     const user = await authService.verifyUser(email, password);
 
     // 2. Generate the Kivo JWT
-    const token = signToken(user._id.toString());
+    const token = signToken(user._id.toString(), user.role);
 
     // 3. Set the token in a cookie (Optional but highly recommended for Kivo's security)
     res.cookie("token", token, {

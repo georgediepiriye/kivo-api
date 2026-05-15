@@ -25,7 +25,7 @@ export interface IEvent extends Document {
   startDate: Date;
   endDate: Date;
   type: KivoType;
-  status: ("casual" | "verified" | "featured")[]; // Updated to Array
+  status: ("casual" | "verified" | "featured")[];
   approvalStatus: "pending" | "approved" | "rejected";
 
   eventFormat: "physical" | "online" | "hybrid";

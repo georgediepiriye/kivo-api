@@ -527,9 +527,11 @@ export const addPartnerToEvent = async (
     throw new AppError(httpStatus.BAD_REQUEST, "You are already the host");
   }
 
+  // UPDATED: Check the 'user' property inside the co-organizer object
   const alreadyPartner = event.coOrganizers?.some(
-    (id: { toString: () => any }) => id.toString() === userToAdd._id.toString(),
+    (co: any) => co.user.toString() === userToAdd._id.toString(),
   );
+
   if (alreadyPartner) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -537,13 +539,26 @@ export const addPartnerToEvent = async (
     );
   }
 
+  // UPDATED: Push an OBJECT instead of just the ID
   const updatedEvent = await Event.findByIdAndUpdate(
     eventId,
-    { $addToSet: { coOrganizers: userToAdd._id } },
+    {
+      $push: {
+        coOrganizers: {
+          user: userToAdd._id,
+          permissions: {
+            // These defaults come from your schema, but you can be explicit
+            canViewRevenue: false,
+            canViewAttendees: true,
+            canRefundTickets: false,
+            canBroadcast: false,
+            canEditEvent: false,
+          },
+        },
+      },
+    },
     { new: true, runValidators: true },
   );
-
-  logger.info(`Partner Added: EventID=${eventId} Partner=${email}`);
 
   return updatedEvent;
 };
