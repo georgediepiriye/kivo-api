@@ -45,4 +45,17 @@ export class PaystackService {
   }) {
     return this.makeRequest<any>("POST", "/subaccount", payload);
   }
+
+  /**
+   * Initiates a refund via Paystack
+   * @param transaction - The reference or ID of the transaction to refund
+   * @param amount - Optional amount in Kobo. If omitted, Paystack refunds the full amount.
+   */
+  static async refund(transaction: string, amount?: number) {
+    const payload = {
+      transaction,
+      ...(amount && { amount }), // Paystack expects amount in Kobo
+    };
+    return this.makeRequest<any>("POST", "/refund", payload);
+  }
 }

@@ -402,23 +402,21 @@ export const getManagementDashboardData = async (
   page: number = 1,
   limit: number = 20,
 ) => {
-  // 1. Fetch Event with Auth Check
   const event = await Event.findById(eventId).populate(
     "coOrganizers",
     "name image email",
   );
+  if (!event) throw new AppError(httpStatus.NOT_FOUND, "Event not found");
 
-  if (!event) throw new Error("Event not found");
-
+  // Auth Check
   const isOwner = event.organizer.toString() === userId;
   const isCoOrg = event.coOrganizers?.some(
     (coOrg: any) => coOrg._id.toString() === userId,
   );
+  if (!isOwner && !isCoOrg)
+    throw new AppError(httpStatus.FORBIDDEN, "Unauthorized");
 
-  if (!isOwner && !isCoOrg) throw new Error("Unauthorized");
-
-  // 2. Metrics Calculation (Optimized Aggregation)
-  // Instead of fetching all docs, we let MongoDB do the math.
+  // 1. Metrics Calculation (Still only valid/used for money/attendance)
   const metricsData = await Ticket.aggregate([
     {
       $match: {
@@ -431,9 +429,7 @@ export const getManagementDashboardData = async (
         _id: null,
         totalRevenue: { $sum: "$pricePaid" },
         totalSold: { $sum: 1 },
-        checkInCount: {
-          $sum: { $cond: [{ $eq: ["$status", "used"] }, 1, 0] },
-        },
+        checkInCount: { $sum: { $cond: [{ $eq: ["$status", "used"] }, 1, 0] } },
       },
     },
   ]);
@@ -444,7 +440,7 @@ export const getManagementDashboardData = async (
     checkInCount: 0,
   };
 
-  // 3. Sales By Tier (Using your schema's tierName)
+  // 2. Sales By Tier (Filtered for active sales)
   const tierStats = await Ticket.aggregate([
     {
       $match: {
@@ -461,7 +457,6 @@ export const getManagementDashboardData = async (
     },
   ]);
 
-  // Map aggregation results back to event tiers to include capacity
   const salesByTier = event.ticketTiers.map((tier: any) => {
     const stat = tierStats.find((s) => s._id === tier.name);
     return {
@@ -472,21 +467,19 @@ export const getManagementDashboardData = async (
     };
   });
 
-  // 4. Paginated Attendees
+  // 3. Paginated Attendees (REMOVED STATUS FILTER)
+  // We want to see EVERYTHING here: valid, used, refunded, transferred, cancelled.
   const skip = (page - 1) * limit;
 
   const [attendees, totalCount] = await Promise.all([
-    Ticket.find({ event: eventId, status: { $in: ["valid", "used"] } })
+    Ticket.find({ event: eventId }) // Removed status filter to show all
       .sort("-createdAt")
       .skip(skip)
       .limit(limit)
       .populate("owner", "name image")
       .populate("checkedInBy", "name image")
       .lean(),
-    Ticket.countDocuments({
-      event: eventId,
-      status: { $in: ["valid", "used"] },
-    }),
+    Ticket.countDocuments({ event: eventId }),
   ]);
 
   return {

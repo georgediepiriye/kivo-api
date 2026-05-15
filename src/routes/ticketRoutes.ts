@@ -6,6 +6,7 @@ import {
   bookTicketSchema,
   validateCheckInSchema,
   syncTicketsSchema,
+  refundTicketSchema,
 } from "../validation/ticketValidation.js";
 
 const router = Router();
@@ -34,6 +35,13 @@ router.post(
   protect,
   validate(validateCheckInSchema),
   ticketController.validateCheckIn,
+);
+
+router.post(
+  "/refund/:ticketCode",
+  protect,
+  validate(refundTicketSchema),
+  ticketController.refundTicket,
 );
 
 export default router;

@@ -584,3 +584,56 @@ export const releaseExpiredInventory = async () => {
     await session.endSession();
   }
 };
+
+export const processTicketRefund = async (ticketCode: string) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // 1. Fetch Ticket & Order (to get Paystack reference)
+    const ticket = await Ticket.findOne({ ticketCode })
+      .populate("order")
+      .session(session);
+    if (!ticket) throw new AppError("Ticket not found", httpStatus.NOT_FOUND);
+    if (ticket.status === "refunded")
+      throw new AppError("Already refunded", httpStatus.BAD_REQUEST);
+
+    const order = ticket.order as any;
+
+    // 2. Paystack Refund (Money Side)
+    // Convert pricePaid to Kobo for Paystack
+    const refundAmountKobo = Math.round(ticket.pricePaid * 100);
+
+    try {
+      await PaystackService.refund(order.paymentReference, refundAmountKobo);
+    } catch (err: any) {
+      throw new AppError(
+        httpStatus.FAILED_DEPENDENCY,
+        "Paystack refund failed. Check balance.",
+      );
+    }
+
+    // 3. Mark Ticket Refunded
+    ticket.status = "refunded";
+    await ticket.save({ session });
+
+    // 4. Restore Inventory (Atomic decrement)
+    await Event.findOneAndUpdate(
+      { _id: ticket.event, "ticketTiers.name": ticket.tierName },
+      { $inc: { "ticketTiers.$.sold": -1, attendees: -1 } },
+      { session },
+    );
+
+    await session.commitTransaction();
+
+    // 5. Async Notification
+    kivoEvents.emit("ticket.refunded", { ticket, order });
+
+    return ticket;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};

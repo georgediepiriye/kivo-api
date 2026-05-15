@@ -188,3 +188,33 @@ export const syncTickets = async (
     next(error);
   }
 };
+
+// controllers/ticketController.ts
+
+export const refundTicket = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { ticketCode } = req.params;
+
+    // Authorization check: Only organizers or admins should refund
+    const userRole = (req.user as any)?.role;
+    if (!["admin", "organizer"].includes(userRole)) {
+      throw new AppError("Unauthorized to issue refunds", httpStatus.FORBIDDEN);
+    }
+
+    const result = await ticketService.processTicketRefund(
+      ticketCode as string,
+    );
+
+    res.status(httpStatus.OK).json({
+      status: "success",
+      message: "Ticket invalidated and inventory updated",
+      data: result.ticket,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

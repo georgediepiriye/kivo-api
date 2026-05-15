@@ -30,6 +30,11 @@ export const syncTicketsSchema = z.object({
     since: z.string().optional().default("0"),
   }),
 });
+export const refundTicketSchema = z.object({
+  params: z.object({
+    ticketCode: z.string().min(5, "Invalid ticket code"),
+  }),
+});
 
 export type SyncTicketsParams = z.infer<typeof syncTicketsSchema>["params"];
 export type SyncTicketsQuery = z.infer<typeof syncTicketsSchema>["query"];

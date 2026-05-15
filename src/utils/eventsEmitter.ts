@@ -1,14 +1,12 @@
 import { EventEmitter } from "events";
 import logger from "./logger.js";
-import { sendTicketEmail } from "./emailService.js";
+import { sendTicketEmail, sendRefundEmail } from "./emailService.js"; // Assume sendRefundEmail exists
 
 // Initialize the EventEmitter
 const kivoEvents = new EventEmitter();
 
 /**
- * NAMED LISTENER FUNCTION
- * Using a named function allows us to manage it more effectively
- * than an anonymous arrow function.
+ * Handle Order Fulfillment (Success)
  */
 const handleOrderFulfilled = async ({
   order,
@@ -16,14 +14,12 @@ const handleOrderFulfilled = async ({
   eventImage,
 }: {
   order: any;
-  tickets: any;
+  tickets: any[];
   eventImage: string;
 }) => {
   try {
     logger.info(`Background: Sending tickets for Order ${order._id}`);
-
     await sendTicketEmail(order.buyerEmail, tickets, eventImage);
-
     logger.info(`Background: Email sent successfully to ${order.buyerEmail}`);
   } catch (error: any) {
     logger.error(`Background Error: Failed to send email: ${error.message}`);
@@ -31,17 +27,43 @@ const handleOrderFulfilled = async ({
 };
 
 /**
+ * Handle Ticket Refund (Cancellation)
+ */
+const handleTicketRefunded = async ({
+  ticket,
+  order,
+}: {
+  ticket: any;
+  order: any;
+}) => {
+  try {
+    logger.info(
+      `Background: Processing refund notification for Ticket ${ticket.ticketCode}`,
+    );
+
+    // Call your email service to inform the user about the refund
+    // In a no-wallet setup, it's vital to mention the 3-5 day bank processing time
+    await sendRefundEmail(order.buyerEmail, ticket);
+
+    logger.info(`Background: Refund notification sent to ${order.buyerEmail}`);
+  } catch (error: any) {
+    logger.error(
+      `Background Error: Failed to send refund email: ${error.message}`,
+    );
+  }
+};
+
+/**
  * PREVENT MEMORY LEAKS
- * During hot-reloading (Nodemon), listeners can pile up.
- * removeAllListeners ensures we only ever have ONE active listener
- * for the 'order.fulfilled' event.
+ * removeAllListeners ensures we don't duplicate listeners during hot-reloads
  */
 kivoEvents.removeAllListeners("order.fulfilled");
+kivoEvents.removeAllListeners("ticket.refunded");
 
-// Register the listener
+// Register the listeners
 kivoEvents.on("order.fulfilled", handleOrderFulfilled);
+kivoEvents.on("ticket.refunded", handleTicketRefunded);
 
-// Optional: Increase the limit only if you plan to add 20+ DIFFERENT types of listeners
 kivoEvents.setMaxListeners(20);
 
 export default kivoEvents;
