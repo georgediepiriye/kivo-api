@@ -697,9 +697,6 @@ export const removeDiscountCode = async (
   codeId: string,
   userId: string,
 ) => {
-  console.log(
-    `Attempting to remove discount code ${codeId} from event ${eventId} by user ${userId}`,
-  );
   const event = await Event.findById(eventId);
   if (!event) throw new AppError(httpStatus.NOT_FOUND, "Event not found");
 

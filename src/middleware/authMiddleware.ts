@@ -11,77 +11,63 @@ interface JwtPayload {
   iat: number;
 }
 
-/**
- * PROTECT MIDDLEWARE
- * We cast the entire function as 'RequestHandler' to ensure it is compatible
- * with router.use() and router.post() regardless of internal 'req' typing.
- */
 export const protect = (async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    // 1. Get token from Cookies or Authorization Header
     let token: string | undefined;
 
+    // 1. Check Cookies
     if (req.cookies && req.cookies.token) {
       token = req.cookies.token;
-    } else if (req.headers.authorization?.startsWith("Bearer")) {
-      token = req.headers.authorization.split(" ")[1];
+    }
+    // 2. Bulletproof Authorization Header Check
+    else if (req.headers.authorization) {
+      // Matches 'Bearer ' or 'Bearer' followed by any amount of whitespace
+      const authHeader = req.headers.authorization;
+      if (/^Bearer\s+/i.test(authHeader)) {
+        token = authHeader.replace(/^Bearer\s+/i, "").trim();
+      }
     }
 
-    if (!token) {
+    // Double check what is being received in your terminal logs
+    console.log("MIDDLEWARE_EXTRACTED_TOKEN:", token);
+
+    if (!token || token === "null" || token === "undefined") {
       logger.debug(
-        `Protect Middleware: No token provided for ${req.originalUrl}`,
+        `Protect Middleware: Missing token validation for ${req.originalUrl}`,
       );
-      return next(
-        new AppError(
-          httpStatus.UNAUTHORIZED,
-          "You are not logged in. Please log in to get access.",
-        ),
-      );
+      return res.status(401).json({
+        status: "fail",
+        message: "You are not logged in. Please log in to get access.",
+      });
     }
 
-    // 2. Verify token
-    const decoded = jwt.verify(
-      token,
-      config.jwt.secret,
-    ) as unknown as JwtPayload;
+    // 3. Verify token
+    const decoded = jwt.verify(token, config.jwt.secret) as any;
 
-    // 3. Check if user still exists in DB
+    // 4. Check user
     const currentUser = await User.findById(decoded.id);
     if (!currentUser) {
-      logger.warn(
-        `Auth Failure: Valid token but User ${decoded.id} no longer exists.`,
-      );
-      return next(
-        new AppError(
-          httpStatus.UNAUTHORIZED,
-          "The user belonging to this token no longer exists.",
-        ),
-      );
+      return res.status(401).json({
+        status: "fail",
+        message: "The user belonging to this token no longer exists.",
+      });
     }
 
-    // 4. Grant Access
-    // Use 'as any' to bypass the conflict with Express's global User type
-    (req as any).user = currentUser as IUser;
+    (req as any).user = currentUser;
     next();
   } catch (error: any) {
-    logger.warn(`JWT Verification Failed: ${error.message} from IP: ${req.ip}`);
-    return next(
-      new AppError(
-        httpStatus.UNAUTHORIZED,
-        "Invalid token or session expired. Please log in again.",
-      ),
-    );
+    logger.warn(`JWT Verification Failed: ${error.message}`);
+    return res.status(401).json({
+      status: "fail",
+      message: "Invalid token or session expired.",
+    });
   }
 }) as RequestHandler;
 
-/**
- * OPTIONAL PROTECT MIDDLEWARE
- * Tries to identify the user but doesn't block the request if they are a guest.
- */
 export const optionalProtect = (async (
   req: Request,
   res: Response,
@@ -90,19 +76,16 @@ export const optionalProtect = (async (
   try {
     let token: string | undefined;
 
-    // Look for the cookie we identified earlier: "token"
     if (req.cookies && req.cookies.token) {
       token = req.cookies.token;
-    } else if (req.headers.authorization?.startsWith("Bearer")) {
+    } else if (req.headers.authorization?.startsWith("Bearer ")) {
       token = req.headers.authorization.split(" ")[1];
     }
 
-    // If no token, just move to the controller as a guest
     if (!token) {
       return next();
     }
 
-    // If there is a token, try to verify it
     const decoded = jwt.verify(token, config.jwt.secret) as any;
     const currentUser = await User.findById(decoded.id);
 
@@ -112,17 +95,12 @@ export const optionalProtect = (async (
 
     next();
   } catch (error: any) {
-    // If token is invalid, we still allow them to proceed as a guest
     next();
   }
 }) as RequestHandler;
 
-/**
- * ROLE AUTHORIZATION
- */
 export const restrictTo = (...roles: string[]) => {
   return ((req: Request, res: Response, next: NextFunction) => {
-    // Use 'as any' to access the user object we attached in 'protect'
     const user = (req as any).user as IUser | undefined;
 
     if (!user || !roles.includes(user.role)) {

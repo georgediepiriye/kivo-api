@@ -2,6 +2,8 @@ import { Router } from "express";
 import * as authController from "../controllers/authController.js";
 import { validate } from "../middleware/validate.js";
 import { signupSchema, loginSchema } from "../validation/authValidation.js";
+// 💡 Import your protect middleware (adjust this relative path to match your folder structure)
+import { protect } from "../middleware/authMiddleware.js";
 import passport from "passport";
 import jwt from "jsonwebtoken";
 import config from "../config/config.js";
@@ -12,7 +14,8 @@ router.post("/signup", validate(signupSchema), authController.signup);
 router.post("/login", validate(loginSchema), authController.login);
 router.post("/logout", authController.logout);
 
-router.get("/me", authController.getMe);
+// 🔐 Secure this endpoint by passing the protect middleware first!
+router.get("/me", protect, authController.getMe);
 
 // 1. Redirect user to Google
 router.get(
@@ -31,27 +34,22 @@ router.get(
     failureRedirect: `${config.clientUrl}/login`,
   }),
   (req, res) => {
-    // User is authenticated by Google, now we issue our own Kivo JWT
     const user = req.user as any;
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
       config.jwt.secret!,
-      {
-        expiresIn: "7d",
-      },
+      { expiresIn: "7d" },
     );
 
-    // Set HTTP-Only Cookie
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: true,
       sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // Final redirect to frontend
-    res.redirect(`${config.clientUrl}/profile`);
+    res.redirect(`${config.clientUrl}/auth/callback?token=${token}`);
   },
 );
 

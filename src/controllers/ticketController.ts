@@ -138,9 +138,6 @@ export const validateCheckIn = async (
     const { checkInCode } = req.body;
     const { eventId } = req.params;
     const scannerId = (req as any).user.id;
-    console.log("Scanner ID:__", scannerId);
-    console.log("Event ID:__", eventId);
-    console.log("Check-in Code:__", checkInCode);
 
     const checkInData = await ticketService.processTicketCheckIn(
       checkInCode,

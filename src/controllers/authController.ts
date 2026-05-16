@@ -11,11 +11,11 @@ export const signup = catchAsync(
     const newUser = await authService.createUser(req.body);
     const token = signToken(newUser._id.toString(), newUser.role);
 
-    // Sanitize response
     const user = newUser.toObject();
     delete user.password;
     delete user.__v;
 
+    // Retain for fallback, but we will no longer rely on it exclusively in prod
     res.cookie("token", token, {
       httpOnly: true,
       secure: config.env === "production",
@@ -25,10 +25,8 @@ export const signup = catchAsync(
 
     res.status(httpStatus.CREATED).json({
       status: "success",
-      token,
-      data: {
-        user,
-      },
+      token, // 💡 CRITICAL: Ensure token is passed explicitly in response payload
+      data: { user },
     });
   },
 );
@@ -36,26 +34,19 @@ export const signup = catchAsync(
 export const login = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { email, password } = req.body;
-
-    // 1. Verify user via the service.
-    // This will now handle password checks AND Google-account detection.
     const user = await authService.verifyUser(email, password);
-
-    // 2. Generate the Kivo JWT
     const token = signToken(user._id.toString(), user.role);
 
-    // 3. Set the token in a cookie (Optional but highly recommended for Kivo's security)
     res.cookie("token", token, {
       httpOnly: true,
       secure: config.env === "production",
       sameSite: config.env === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // 4. Send response
     res.status(httpStatus.OK).json({
       status: "success",
-      token,
+      token, // 💡 CRITICAL: Ensure token is passed explicitly in response payload
       data: {
         user: {
           id: user._id,
@@ -71,39 +62,47 @@ export const login = catchAsync(
   },
 );
 
-export const getMe = async (req: Request, res: Response) => {
+export const getMe = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    // 1. Extract token from HttpOnly cookie
-    const token = req.cookies.token;
+    // 1. Grab the user safely attached by your 'protect' middleware
+    const currentUser = (req as any).user;
 
-    if (!token) {
-      return res
-        .status(401)
-        .json({ authenticated: false, message: "No token" });
+    if (!currentUser) {
+      return res.status(httpStatus.UNAUTHORIZED).json({
+        status: "fail",
+        message: "User context missing. Please log in again.",
+      });
     }
 
-    // 2. Verify JWT
-    const decoded = jwt.verify(token, config.jwt.secret!) as {
-      id: string;
-    };
+    // 2. Clear browser cache headers to stop the 304 Not Modified redirect loop
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate",
+    );
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
 
-    // 3. Get user from service
-    const user = await authService.getAuthenticatedUser(decoded.id);
-
-    return res.status(200).json({
-      authenticated: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        role: user.role,
+    // 3. Match the exact data wrapper structural footprint your frontend expects
+    return res.status(httpStatus.OK).json({
+      status: "success",
+      data: {
+        user: {
+          id: currentUser._id,
+          name: currentUser.name,
+          email: currentUser.email,
+          role: currentUser.role,
+          image: currentUser.image,
+          interests: currentUser.interests,
+          location: currentUser.location,
+        },
       },
     });
-  } catch (error: any) {
-    return res
-      .status(401)
-      .json({ authenticated: false, message: "Unauthorized" });
+  } catch (error) {
+    next(error);
   }
 };
 
